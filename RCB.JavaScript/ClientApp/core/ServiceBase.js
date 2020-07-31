@@ -2,6 +2,10 @@
 import Axios, { AxiosRequestConfig } from "axios";
 import { transformUrl } from "domain-wait";
 import queryString from "query-string";
+import _isString from "lodash/isString";
+import _has from "lodash/has";
+import _get from "lodash/get";
+
 import { isNode, showErrors, getNodeProcess } from "@Utils";
 import SessionManager from "./session";
 
@@ -9,13 +13,11 @@ import SessionManager from "./session";
  * Represents base class of the isomorphic service.
  */
 export class ServiceBase {
-
     /**
      * Make request with JSON data.
      * @param opts
      */
     async requestJson(opts) {
-
         var axiosResult = null;
         var result = null;
 
@@ -31,7 +33,6 @@ export class ServiceBase {
         let axiosRequestConfig;
 
         if (isNode()) {
-
             const ssrSessionData = SessionManager.getSessionContext().ssr;
             const { cookie } = ssrSessionData;
 
@@ -40,7 +41,7 @@ export class ServiceBase {
                 headers: {
                     Cookie: cookie
                 }
-            }
+            };
         }
 
         try {
@@ -61,13 +62,39 @@ export class ServiceBase {
                     axiosResult = await Axios.delete(processQuery(opts.url, opts.data), axiosRequestConfig);
                     break;
             }
-            result = new Result(axiosResult.data.value, ...axiosResult.data.errors);
+            const value = (() => {
+                if ((axiosResult.data !== undefined || axiosResult.data !== null) && axiosResult.data.value !== undefined) {
+                    return axiosResult.data.value;
+                } else {
+                    return axiosResult.data;
+                }
+            })();
+            const errors = (() => {
+                if (axiosResult.data.errors) {
+                    return axiosResult.data.errors;
+                } else if (axiosResult.data.error) {
+                    return [axiosResult.data.error];
+                } else {
+                    return [];
+                }
+            })();
+            result = new Result(value, ...errors);
         } catch (error) {
-            result = new Result(null, error.message);
+            result = new Result(null, error);
         }
 
         if (result.hasErrors) {
-            showErrors(...result.errors);
+            showErrors(
+                ...result.errors.map((e) => {
+                    if (_isString(e)) {
+                        return e;
+                    } else if (_has(e, "message")) {
+                        return e.message;
+                    } else {
+                        return e;
+                    }
+                })
+            );
         }
 
         return result;
@@ -85,7 +112,7 @@ export class ServiceBase {
 
         var axiosOpts = {
             headers: {
-                'Content-Type': 'multipart/form-data'
+                "Content-Type": "multipart/form-data"
             }
         };
 

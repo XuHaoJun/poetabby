@@ -12,6 +12,9 @@ import { StaticRouter } from "react-router-dom";
 import serializeJavascript from "serialize-javascript";
 import { routes } from "./routes";
 import responseContext from "@Core/responseContext";
+import { ServerStyleSheets, ThemeProvider } from "@material-ui/core/styles";
+import theme from "./styles/theme";
+import { actionCreators as serverEnvActions } from "@Store/serverEnvStore";
 
 var renderHelmet = () => {
     var helmetData = Helmet.renderStatic();
@@ -24,25 +27,24 @@ var renderHelmet = () => {
     return helmetStrings;
 };
 
-var createGlobals = (session, initialReduxState, helmetStrings) => {
+var createGlobals = (session, initialReduxState, helmetStrings, css = "") => {
     return {
         completedTasks: getCompletedTasks(),
         session,
 
-        // Serialize Redux State with "serialize-javascript" library 
+        // Serialize Redux State with "serialize-javascript" library
         // prevents XSS atack in the path of React Router via browser.
         initialReduxState: serializeJavascript(initialReduxState, { isJSON: true }),
-        helmetStrings
+        helmetStrings,
+        css
     };
 };
 
 export default createServerRenderer((params) => {
-
     SessionManager.resetSession();
     SessionManager.initSession(params.data);
 
     return new Promise((resolve, reject) => {
-        
         // Prepare Redux store with in-memory history, and dispatch a navigation event.
         // corresponding to the incoming URL.
         const basename = params.baseUrl.substring(0, params.baseUrl.length - 1); // Remove trailing slash.
@@ -53,19 +55,33 @@ export default createServerRenderer((params) => {
         // Prepare an instance of the application and perform an inital render that will
         // cause any async tasks (e.g., data access) to begin.
         const routerContext = {};
-        const app = (
-            <Provider store={store}>
-                <StaticRouter basename={basename} context={routerContext} location={params.location.path} children={routes} />
-            </Provider>
+        const _app = (
+            <ThemeProvider theme={theme}>
+                <Provider store={store}>
+                    <StaticRouter basename={basename} context={routerContext} location={params.location.path} children={routes} />
+                </Provider>
+            </ThemeProvider>
         );
 
-        const renderApp = () => {
-            return renderToString(app);
+        const renderApp = ({ enableCss = true } = { enableCss: true }) => {
+            if (enableCss) {
+                const sheets = new ServerStyleSheets();
+                const app = sheets.collect(_app);
+                const html = renderToString(app);
+                const css = sheets.toString();
+                return { css, html };
+            } else {
+                const app = _app;
+                const html = renderToString(app);
+                return { html };
+            }
         };
 
         addDomainWait(params);
 
-        renderApp();
+        store.dispatch(serverEnvActions.setReadyFirstRenderOnServer(true));
+        renderApp({ enableCss: false });
+        store.dispatch(serverEnvActions.setReadyFirstRenderOnServer(false));
 
         // If there's a redirection, just send this information back to the host application.
         if (routerContext.url) {
@@ -80,13 +96,12 @@ export default createServerRenderer((params) => {
         // Once any async tasks are done, we can perform the final render.
         // We also send the redux store state, so the client can continue execution where the server left off.
         params.domainTasks.then(() => {
-
+            const { html, css } = renderApp();
             resolve({
-                html: renderApp(),
-                globals: createGlobals(params.data, store.getState(), renderHelmet()),
+                html: html,
+                globals: createGlobals(params.data, store.getState(), renderHelmet(), css),
                 statusCode: responseContext.statusCode
             });
-
         }, reject); // Also propagate any errors back into the host application.
     });
 });

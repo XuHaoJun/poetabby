@@ -1,16 +1,22 @@
-import * as React from 'react';
+import * as React from "react";
 import GuestLayout from "@Layouts/GuestLayout";
-import AuthorizedLayout from '@Layouts/AuthorizedLayout';
-import LoginPage from '@Pages/LoginPage';
+import AuthorizedLayout from "@Layouts/AuthorizedLayout";
+import LoginPage from "@Pages/LoginPage";
 import AppRoute from "@Components/shared/AppRoute";
-import HomePage from '@Pages/HomePage';
-import ExamplesPage from '@Pages/ExamplesPage';
-import { Switch } from 'react-router-dom';
-import NotFoundPage from '@Pages/NotFoundPage';
+import HomePage from "@Pages/HomePage";
+import ExamplesPage from "@Pages/ExamplesPage";
+import { Switch } from "react-router-dom";
+import PassiveTreePage from "@Pages/PassiveTreePage";
+import BuildsPage from "@Pages/BuildsPage";
+import CharacterPage from "@Pages/CharacterPage";
+import CssbaseLayout from "@Layouts/CssbaseLayout";
+import NotFoundPage from "@Pages/NotFoundPage";
 
-export const routes = <Switch>
-    <AppRoute layout={GuestLayout} exact path="/login" component={LoginPage} />
-    <AppRoute layout={AuthorizedLayout} exact path="/" component={HomePage} />
-    <AppRoute layout={AuthorizedLayout} exact path="/example" component={ExamplesPage} />
-    <AppRoute layout={GuestLayout} component={NotFoundPage} statusCode={404} />
-</Switch>;
+export const routes = (
+    <Switch>
+        <AppRoute layout={CssbaseLayout} component={CharacterPage} path="/characters/:accountName/:characterName" />
+        <AppRoute layout={CssbaseLayout} component={PassiveTreePage} exact path="/tree" />
+        <AppRoute layout={CssbaseLayout} component={BuildsPage} path="/" />
+        <AppRoute layout={GuestLayout} component={NotFoundPage} statusCode={404} />
+    </Switch>
+);

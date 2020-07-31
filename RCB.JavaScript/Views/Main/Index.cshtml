@@ -10,6 +10,7 @@
     var initialReduxStateJson = prerenderResult?.Globals?["initialReduxState"]?.ToString();
     var completedTasksJson = prerenderResult?.Globals?["completedTasks"]?.ToString();
     var helmetStringsPrerender = prerenderResult?.Globals?["helmetStrings"]?.ToString();
+    var css = prerenderResult?.Globals["css"]?.ToString();
 
     if (prerenderResult.StatusCode.HasValue)
     {
@@ -23,6 +24,10 @@
     @Html.Raw(helmetStringsPrerender)
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <base href="~/" />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/icon?family=Material+Icons"
+    />
 
     <link rel="stylesheet" href="~/dist/vendor.css" asp-append-version="true" />
 
@@ -30,25 +35,18 @@
     {
         <link rel="stylesheet" href="~/dist/site.css" asp-append-version="true" />
     }
-
-    <script>
+    <style id="jss-server-side">@Html.Raw(css)</style>
+    <script defer>
         window.session = @Html.Raw(string.IsNullOrEmpty(isomorphicSessionDataJson) ? "null" : isomorphicSessionDataJson);
         window.initialReduxState = @Html.Raw(initialReduxStateJson);
         window.completedTasks = @Html.Raw(completedTasksJson);
     </script>
+    <script defer src="~/dist/vendor.js" asp-append-version="true"></script>
+    <script defer src="~/dist/main-client.js" asp-append-version="true"></script>
 </head>
 <body>
 
-    <div id="applicationLoader">
-        <div>
-            <span class="text">Loading</span>
-            <div class="spinner">
-                <div class="bounce1"></div>
-                <div class="bounce2"></div>
-                <div class="bounce3"></div>
-            </div>
-        </div>
-    </div>
+    <h2>Loading......</h2>
 
     <div id="queryLoader" class="hidden">
         <div>
@@ -62,9 +60,6 @@
     <div id="access-token" data-access-token="@ViewBag.accessToken"></div>
 
     <div id="react-app">@Html.Raw(prerenderResult?.Html)</div>
-
-    <script src="~/dist/vendor.js" asp-append-version="true"></script>
-    <script src="~/dist/main-client.js" asp-append-version="true"></script>
 
 </body>
 </html>

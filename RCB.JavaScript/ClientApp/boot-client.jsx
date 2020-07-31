@@ -4,9 +4,9 @@ import "custom-event-polyfill";
 import "event-source-polyfill";
 
 // Import global styles.
-import "bootstrap/dist/css/bootstrap.min.css";
-import "@Styles/main.scss";
-import "@Styles/loaders/queryLoader.scss";
+// import "bootstrap/dist/css/bootstrap.min.css";
+// import "@Styles/main.scss";
+// import "@Styles/loaders/queryLoader.scss";
 import "react-toastify/dist/ReactToastify.css";
 
 // Other imports.
@@ -18,8 +18,12 @@ import { AppContainer } from "react-hot-loader";
 import { Provider } from "react-redux";
 import { ConnectedRouter } from "connected-react-router";
 import { createBrowserHistory } from "history";
+import { ThemeProvider } from "@material-ui/core/styles";
+import theme from "./styles/theme";
 import { isNode, showApplicationLoader, hideApplicationLoader } from "@Utils";
 import * as RoutesModule from "./routes";
+import ScrollToTop from "@Components/shared/ScrollToTop";
+
 let routes = RoutesModule.routes;
 
 function setupSession() {
@@ -30,27 +34,26 @@ function setupSession() {
             ssr: {}
         });
     }
-};
+}
 
 function setupGlobalPlugins() {
     // Use this function to configure plugins on the client side.
-};
+}
 
 function setupEvents() {
-
     showApplicationLoader();
 
     document.addEventListener("DOMContentLoaded", () => {
         hideApplicationLoader();
     });
-};
+}
 
 function getBaseUrl() {
-    var elements = document.getElementsByTagName('base');
+    var elements = document.getElementsByTagName("base");
     if (elements.length === 0) {
         return null;
     }
-    return elements[0].getAttribute('href');
+    return elements[0].getAttribute("href");
 }
 
 // Create browser history to use in the Redux store.
@@ -61,17 +64,33 @@ const history = createBrowserHistory({ basename: baseUrl });
 const initialState = window.initialReduxState;
 const store = configureStore(history, initialState);
 
-function renderApp() {
-    // This code starts up the React app when it runs in a browser. 
-    // It sets up the routing configuration and injects the app into a DOM element.
-    ReactDOM.hydrate(
-        <AppContainer>
-            <Provider store={ store }>
-                <ConnectedRouter history={ history } children={ routes } />
-            </Provider>
-        </AppContainer>,
-        document.getElementById("react-app")
+function Main() {
+    // https://material-ui.com/guides/server-rendering/
+    React.useEffect(() => {
+        const jssStyles = document.querySelector("#jss-server-side");
+        if (jssStyles) {
+            jssStyles.parentElement.removeChild(jssStyles);
+        }
+    }, []);
+    return (
+        <ThemeProvider theme={theme}>
+            <AppContainer>
+                <Provider store={store}>
+                    <ConnectedRouter history={history}>
+                        <ScrollToTop />
+                        {routes}
+                    </ConnectedRouter>
+                </Provider>
+            </AppContainer>
+        </ThemeProvider>
     );
+}
+
+function renderApp() {
+    const renderMethod = module.hot ? ReactDOM.render : ReactDOM.hydrate;
+    // This code starts up the React app when it runs in a browser.
+    // It sets up the routing configuration and injects the app into a DOM element.
+    renderMethod(<Main />, document.getElementById("react-app"));
 }
 
 // Setup the application and render it.

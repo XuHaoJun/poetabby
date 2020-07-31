@@ -1,24 +1,20 @@
 {
-  "compilerOptions": {
-    "baseUrl": "ClientApp",
-    "target": "es5",
-    "experimentalDecorators": true,
-    "allowSyntheticDefaultImports": true,
-    "paths": {
-      "@Store/*": [ "./store/*" ],
-      "@Core/*": [ "./core/*" ],
-      "@Components/*": [ "./components/*" ],
-      "@Images/*": [ "./images/*" ],
-      "@Styles/*": [ "./styles/*" ],
-      "@Pages/*": [ "./pages/*" ],
-      "@Layouts/*": [ "./layouts/*" ],
-      "@Services/*": [ "./services/*" ],
-      "@Utils": [ "./utils.ts" ]
-    }
-  },
-  "exclude": [
-    "bin",
-    "node_modules",
-    "AspNet"
-  ]
+    "compilerOptions": {
+        "baseUrl": "ClientApp",
+        "target": "es5",
+        "experimentalDecorators": true,
+        "allowSyntheticDefaultImports": true,
+        "paths": {
+            "@Store/*": ["./store/*"],
+            "@Core/*": ["./core/*"],
+            "@Components/*": ["./components/*"],
+            "@Images/*": ["./images/*"],
+            "@Styles/*": ["./styles/*"],
+            "@Pages/*": ["./pages/*"],
+            "@Layouts/*": ["./layouts/*"],
+            "@Services/*": ["./services/*"],
+            "@Utils": ["./utils.ts"]
+        }
+    },
+    "exclude": ["bin", "node_modules", "AspNet"]
 }

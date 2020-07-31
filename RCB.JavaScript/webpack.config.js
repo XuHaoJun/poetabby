@@ -7,6 +7,7 @@ const WatchMissingNodeModulesPlugin = require('react-dev-utils/WatchMissingNodeM
 const CssNanoPlugin = require("cssnano");
 const TerserWebpackPlugin = require("terser-webpack-plugin");
 const OptimizeCSSAssetsPlugin = require("optimize-css-assets-webpack-plugin");
+const MomentLocalesPlugin = require('moment-locales-webpack-plugin');
 
 module.exports = (env) => {
     const isDevBuild = !(env && env.prod);
@@ -89,7 +90,10 @@ module.exports = (env) => {
                 // solution that requires the user to opt into importing specific locales.
                 // https://github.com/jmblog/how-to-optimize-momentjs-with-webpack
                 // You can remove this if you don't use Moment.js:
-                new webpack.IgnorePlugin(/^\.\/locale$/, /moment$/)
+                // new webpack.IgnorePlugin(/^\.\/locale$/, /moment$/),
+                // 
+                // To strip all locales except “en”
+                new MomentLocalesPlugin()
             ].concat(isDevBuild ? [
                 // Development.
 
