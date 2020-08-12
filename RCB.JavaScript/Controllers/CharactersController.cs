@@ -28,6 +28,8 @@ namespace RCB.JavaScript.Controllers
       }
       else
       {
+        Response.Headers.Add("Cache-Control", "public, max-age=60");
+        pchar.CountAnalysis = null;
         return pchar;
       }
     }
@@ -42,6 +44,8 @@ namespace RCB.JavaScript.Controllers
       }
       else
       {
+        Response.Headers.Add("Cache-Control", "public, max-age=60");
+        pchar.CountAnalysis = null;
         return pchar;
       }
     }

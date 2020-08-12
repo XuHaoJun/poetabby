@@ -8,6 +8,9 @@ import _get from "lodash/get";
 import _hasIn from "lodash/hasIn";
 import _cloneDeep from "lodash/cloneDeep";
 import _castArray from "lodash/castArray";
+import _zipWith from "lodash/zipWith";
+import _tail from "lodash/tail";
+import _isString from "lodash/isString";
 
 import * as LeagueStore from "@Store/leagueStore";
 import * as CharacterStore from "@Store/characterStore";
@@ -92,12 +95,6 @@ const StyledBadge = withStyles((theme) => ({
     }
 }))(Badge);
 
-const StyledFormControlLabel = withStyles((theme) => ({
-    label: {
-        width: "100%"
-    }
-}))(FormControlLabel);
-
 const StyledListItem = withStyles((theme) => ({
     root: {
         transition: "background 1s ease-in-out",
@@ -160,51 +157,80 @@ function _FilterList(props) {
         const item = entries[index];
         const count = getCount(item, index, entries, config);
         const percentValue = (count / total) * 100;
-        var nextConfig;
         var selected;
-        if (configType === "array") {
-            const configValue = getConfigValue(item, index, entries);
-            const configArray = _get(config, configField, []);
-            var next;
-            selected = configArray.includes(configValue);
-            if (selected) {
-                const s = new Set(configArray);
-                s.delete(configValue);
-                next = [...s];
-            } else {
-                const s = new Set(configArray);
-                s.add(configValue);
-                next = [...s];
-            }
-            nextConfig = {
-                ..._cloneDeep(config),
-                [configField]: next
-            };
-        } else if (configType === "weapon/offhand") {
-            const configValue1 = item.weaponType;
-            const configValue2 = item.offhandType;
-            selected = _get(config, "weaponType", null) === configValue1 && _get(config, "offhandType", null) === configValue2;
-            if (selected) {
-                nextConfig = {
+        const getNextConfig = () => {
+            if (configType === "array") {
+                const configValue = getConfigValue(item);
+                const configArray = _get(config, configField, []);
+                var next;
+                selected = configArray.includes(configValue);
+                if (selected) {
+                    const s = new Set(configArray);
+                    s.delete(configValue);
+                    next = [...s];
+                } else {
+                    const s = new Set(configArray);
+                    s.add(configValue);
+                    next = [...s];
+                }
+                return {
                     ..._cloneDeep(config),
-                    weaponType: undefined,
-                    offhandType: undefined
+                    [configField]: next
                 };
+            } else if (configType === "mainSkillSupportArray") {
+                const configValue = getConfigValue(item);
+                const configArrayIndex = _get(config, configField, []).findIndex((xs) => _get(xs, 0) === item.mainSkillId);
+                const configArray = configArrayIndex != -1 ? _get(config, [configField, configArrayIndex]) : [];
+                var next;
+                selected = configArray.includes(configValue);
+                if (selected) {
+                    const s = new Set(_tail(configArray));
+                    s.delete(configValue);
+                    next = [item.mainSkillId, ...s];
+                } else {
+                    const s = new Set(_tail(configArray));
+                    s.add(configValue);
+                    next = [item.mainSkillId, ...s];
+                }
+                const cloned = _cloneDeep(config);
+                if (configArrayIndex != -1) {
+                    _set(cloned, [configField, configArrayIndex], next);
+                } else {
+                    _set(cloned, configField, _get(cloned, configField, []).concat([next]));
+                }
+                return cloned;
+            } else if (configType === "weapon/offhand") {
+                var nextConfig;
+                for (const configField of ["weaponType", "offhandType"]) {
+                    const configValue = getConfigValue(item, configField);
+                    const configArray = _get(config, configField, []);
+                    var next;
+                    selected = configArray.includes(configValue);
+                    if (selected) {
+                        const s = new Set(configArray);
+                        s.delete(configValue);
+                        next = [...s];
+                    } else {
+                        const s = new Set(configArray);
+                        s.add(configValue);
+                        next = [...s];
+                    }
+                    nextConfig = {
+                        ..._cloneDeep(nextConfig || config),
+                        [configField]: next
+                    };
+                }
+                return nextConfig;
             } else {
-                nextConfig = {
+                const configValue = getConfigValue(item);
+                selected = _get(config, configField, null) === configValue;
+                return {
                     ..._cloneDeep(config),
-                    weaponType: configValue1,
-                    offhandType: configValue2
+                    [configField]: configValue
                 };
             }
-        } else {
-            const configValue = getConfigValue(item, index, entries);
-            selected = _get(config, configField, null) === configValue;
-            nextConfig = {
-                ..._cloneDeep(config),
-                [configField]: configValue
-            };
-        }
+        };
+        const nextConfig = getNextConfig();
         const to = isFetching
             ? "#"
             : queryString.stringifyUrl({
@@ -253,9 +279,12 @@ function _FilterList(props) {
             return listItem;
         }
     }
+    const itemSize = 40;
     if (isNode()) {
         return (
-            <List dense>{entries.slice(0, 9).map((__, index) => React.cloneElement(renderRow({ index }), { key: index }))}</List>
+            <FixedSizeList height={400} width="100%" itemSize={itemSize} itemCount={entries.length} {...otherProps}>
+                {renderRow}
+            </FixedSizeList>
         );
     } else if (entries.length === 0 && isFetching) {
         return (
@@ -269,13 +298,21 @@ function _FilterList(props) {
         );
     } else {
         return (
-            <AutoSizer>
-                {({ height, width }) => (
-                    <FixedSizeList height={height} width={width} itemSize={34} itemCount={entries.length} {...otherProps}>
-                        {renderRow}
-                    </FixedSizeList>
-                )}
-            </AutoSizer>
+            <NoSsr>
+                <AutoSizer>
+                    {({ height, width }) => (
+                        <FixedSizeList
+                            height={height}
+                            width={width}
+                            itemSize={itemSize}
+                            itemCount={entries.length}
+                            {...otherProps}
+                        >
+                            {renderRow}
+                        </FixedSizeList>
+                    )}
+                </AutoSizer>
+            </NoSsr>
         );
     }
 }
@@ -285,11 +322,34 @@ const FilterList = React.memo(_FilterList, reactEqual);
 // https://github.com/epoberezkin/fast-deep-equal/issues/49
 function queryStringToBuildsFilterConfig(qstr) {
     const queryParsed = Object.assign({}, queryString.parse(qstr));
-    const arrayTypeFields = ["item", "class", "mainSkill", "allSkill", "keystone", "orderBy"];
+    const arrayTypeFields = [
+        "item",
+        "class",
+        "mainSkill",
+        "mainSkillSupport",
+        "allSkill",
+        "keystone",
+        "weaponType",
+        "offhandType",
+        "orderBy"
+    ];
     for (const filed of arrayTypeFields) {
         if (_hasIn(queryParsed, filed)) {
             queryParsed[filed] = _castArray(_get(queryParsed, filed, []));
         }
+    }
+    if (_hasIn(queryParsed, "mainSkillSupport")) {
+        _set(
+            queryParsed,
+            "mainSkillSupport",
+            _get(queryParsed, "mainSkillSupport", []).map((xs) => {
+                if (_isString(xs)) {
+                    return xs.split(",");
+                } else {
+                    return xs;
+                }
+            })
+        );
     }
     return queryParsed;
 }
@@ -443,14 +503,6 @@ const _getConfig = (props) => {
     return config;
 };
 
-const classAnalysisMeta = {
-    name: "classCountEntries",
-    configField: "class",
-    configType: "array",
-    getDisplay: (entry) => entry.class,
-    getConfigValue: (entry) => entry.class
-};
-
 function decodeOp(str) {
     if (isInlucdeString(str)) {
         return { value: str, raw: str, isInclude: true };
@@ -478,6 +530,14 @@ function isInlucdeString(str) {
     return str.charAt(0) !== "!";
 }
 
+const classAnalysisMeta = {
+    name: "classCountEntries",
+    configField: "class",
+    configType: "array",
+    getDisplay: (entry) => entry.class,
+    getConfigValue: (entry) => entry.class
+};
+
 const searchAnalysisMetas = [
     {
         name: "uniqueCountEntries",
@@ -490,6 +550,13 @@ const searchAnalysisMetas = [
         name: "mainSkillCountEntries",
         configField: "mainSkill",
         configType: "array",
+        getDisplay: (entry) => entry.nameSpec,
+        getConfigValue: (entry, isInclude) => encodeOp(entry.skillId, isInclude)
+    },
+    {
+        name: "mainSkillSupportCountEntries",
+        configField: "mainSkillSupport",
+        configType: "mainSkillSupportArray",
         getDisplay: (entry) => entry.nameSpec,
         getConfigValue: (entry, isInclude) => encodeOp(entry.skillId, isInclude)
     },
@@ -529,6 +596,11 @@ const searchAnalysisMetas = [
 
 const allAnalysisMeta = [classAnalysisMeta].concat(searchAnalysisMetas);
 
+const allAnalysisMetaMapping = allAnalysisMeta.reduce((mapping, v) => {
+    mapping[v.name] = v;
+    return mapping;
+}, {});
+
 function BuildsPagePart2(props) {
     const { isFetching, analysis: analysisOri, total, location } = props;
     const uniqueKey = `${total},${(props.entries || []).map((x) => x.characterId).join(",")}`;
@@ -541,7 +613,7 @@ function BuildsPagePart2(props) {
 
     const [searchFilterIsFocus, setSearchFilterIsFocus] = React.useState(false);
     const [searchFilterText, setSearchFilterText] = React.useState("");
-    const [searchFilterValue] = useDebounce(searchFilterText, 400);
+    const [searchFilterValue] = useDebounce(searchFilterText, 300);
     React.useEffect(() => {
         setSearchFilterText("");
     }, [props.leagueName, location.search]);
@@ -591,6 +663,9 @@ function BuildsPagePart2(props) {
             setAnalysis(analysisOri);
         }
     }, [searchFilterValue]);
+
+    const [characterNameLikeText, setCharacterNameLikeText] = React.useState("");
+    const [characterNameLikeValue] = useDebounce(characterNameLikeText, 500);
 
     const getPagination = (pagePosition = "top") => {
         const page = parseInt(_get(config, "offset", 0) / pageLimit + 1);
@@ -669,7 +744,6 @@ function BuildsPagePart2(props) {
                                                                         indeterminate
                                                                         checked={!isInclude}
                                                                         color="secondary"
-                                                                        defaultChecked={false}
                                                                         size="small"
                                                                         component={RouterLink}
                                                                         to={
@@ -720,7 +794,17 @@ function BuildsPagePart2(props) {
                                                         const labelPart1 =
                                                             configField[0].toUpperCase() + configField.substring(1);
                                                         const entry = getEntry();
-                                                        const labelPart2 = Boolean(entry) ? getDisplay(entry) : cvalue;
+                                                        var labelPart2;
+                                                        if (Boolean(entry)) {
+                                                            labelPart2 = getDisplay(entry);
+                                                        } else {
+                                                            const _dis = getDisplay({ skillId: decodeOp(cvalue).value });
+                                                            if (_dis) {
+                                                                labelPart2 = _dis;
+                                                            } else {
+                                                                labelPart2 = decodeOp(cvalue).value;
+                                                            }
+                                                        }
                                                         const label = `${labelPart1}: ${labelPart2}`;
                                                         return (
                                                             <Tag
@@ -733,27 +817,66 @@ function BuildsPagePart2(props) {
                                                         );
                                                     });
                                                 } else if (configType === "weapon/offhand") {
-                                                    const weaponType = _get(config, "weaponType", null);
-                                                    const offhandType = _get(config, "offhandType", null);
-                                                    if (Boolean(weaponType) && Boolean(offhandType)) {
-                                                        var nextQuery = _cloneDeep(config);
-                                                        delete nextQuery.weaponType;
-                                                        delete nextQuery.offhandType;
-                                                        const toggleQuery = {
-                                                            ..._cloneDeep(config),
-                                                            weaponType: toggleOp(weaponType),
-                                                            offhandType: toggleOp(offhandType)
-                                                        };
-                                                        const label = getDisplay({ weaponType, offhandType });
-                                                        return (
-                                                            <Tag
-                                                                key={label}
-                                                                label={label}
-                                                                nextQuery={nextQuery}
-                                                                toggleQuery={toggleQuery}
-                                                                isInclude={isInlucdeString(weaponType)}
-                                                            />
+                                                    const configFields = ["weaponType", "offhandType"];
+                                                    const weaponTypes = _get(config, "weaponType", []);
+                                                    const offhandTypes = _get(config, "offhandType", []);
+                                                    if (weaponTypes.length === offhandTypes.length) {
+                                                        const cvalues = _zipWith(
+                                                            weaponTypes,
+                                                            offhandTypes,
+                                                            (weaponType, offhandType) => {
+                                                                return { weaponType, offhandType };
+                                                            }
                                                         );
+                                                        return cvalues.map((cvalue, cindex) => {
+                                                            const { weaponType, offhandType } = cvalue;
+
+                                                            const cancelQuery = configFields.reduce(
+                                                                (cancelQuery, configField) => {
+                                                                    const q = _cloneDeep(cancelQuery);
+                                                                    const s = new Set(_get(q, configField, []));
+                                                                    const v = cvalue[configField];
+                                                                    s.delete(encodeOp(v, true));
+                                                                    s.delete(encodeOp(v, false));
+                                                                    return {
+                                                                        ...q,
+                                                                        [configField]: [...s]
+                                                                    };
+                                                                },
+                                                                _cloneDeep(config)
+                                                            );
+
+                                                            const toggleQuery = configFields.reduce(
+                                                                (toggleQuery, configField) => {
+                                                                    const q = _cloneDeep(toggleQuery);
+                                                                    return {
+                                                                        ...q,
+                                                                        [configField]: _set(
+                                                                            _get(q, configField, []),
+                                                                            cindex,
+                                                                            toggleOp(cvalue[configField])
+                                                                        )
+                                                                    };
+                                                                },
+                                                                _cloneDeep(config)
+                                                            );
+                                                            const label = getDisplay({
+                                                                weaponType: decodeOp(weaponType).value,
+                                                                offhandType: decodeOp(offhandType).value
+                                                            });
+                                                            return (
+                                                                <Tag
+                                                                    key={label}
+                                                                    label={label}
+                                                                    nextQuery={cancelQuery}
+                                                                    toggleQuery={toggleQuery}
+                                                                    isInclude={
+                                                                        decodeOp(weaponType).isInclude &&
+                                                                        decodeOp(offhandType).isInclude
+                                                                    }
+                                                                />
+                                                            );
+                                                        });
                                                     } else {
                                                         return null;
                                                     }
@@ -770,7 +893,7 @@ function BuildsPagePart2(props) {
                                     <LeaguesMenu />
                                     <Sticky stickyStyle={{ top: 48, marginLeft: 5, zIndex: 2 }}>
                                         <Button
-                                            disabled={isFetching}
+                                            disabled={isFetching || Object.keys(config).length === 0}
                                             variant="contained"
                                             color="primary"
                                             disableRipple
@@ -797,7 +920,7 @@ function BuildsPagePart2(props) {
                         >
                             {_hasIn(analysis, "classCountEntries") ? (
                                 <PercentAvatars
-                                    total={_get(analysis, "totalClassCount")}
+                                    total={total}
                                     entries={_get(analysis, "classCountEntries", [])}
                                     config={config}
                                     isFetching={isFetching}
@@ -847,69 +970,149 @@ function BuildsPagePart2(props) {
                             <Grid item>
                                 <Paper
                                     style={{
-                                        maxHeight: 390,
-                                        height: isFetching ? 390 : _get(analysis, "uniqueCountEntries", []).length * 34,
+                                        maxHeight: 424,
                                         width: "100%",
                                         maxWidth: "100%"
                                     }}
                                 >
-                                    <FilterList
-                                        total={total}
-                                        isFetching={isFetching}
-                                        entries={_get(analysis, "uniqueCountEntries", [])}
-                                        config={config}
-                                        configField="item"
-                                        configType="array"
-                                        pathname={location.pathname}
-                                    />
+                                    <div style={{ height: 24, maxHeight: 24 }}>
+                                        <Typography>Item</Typography>
+                                    </div>
+                                    <div
+                                        style={{
+                                            height:
+                                                isFetching && _get(analysis, "uniqueCountEntries", []).length === 0
+                                                    ? 400
+                                                    : _get(analysis, "uniqueCountEntries", []).length * 40,
+                                            maxHeight: 400
+                                        }}
+                                    >
+                                        <FilterList
+                                            total={total}
+                                            isFetching={isFetching}
+                                            entries={_get(analysis, "uniqueCountEntries", [])}
+                                            config={config}
+                                            configField="item"
+                                            configType="array"
+                                            pathname={location.pathname}
+                                        />
+                                    </div>
                                 </Paper>
                             </Grid>
                             <Grid item>
                                 <Paper
                                     style={{
-                                        maxHeight: 390,
-                                        height: isFetching ? 390 : _get(analysis, "mainSkillCountEntries", []).length * 34,
+                                        maxHeight: 424,
                                         width: "100%",
                                         maxWidth: "100%"
                                     }}
                                 >
-                                    <FilterList
-                                        total={total}
-                                        isFetching={isFetching}
-                                        entries={_get(analysis, "mainSkillCountEntries", [])}
-                                        config={config}
-                                        configField="mainSkill"
-                                        configType="array"
-                                        pathname={location.pathname}
-                                    />
+                                    <div style={{ height: 24, maxHeight: 24 }}>
+                                        <Typography>Main Skill(5 link+)</Typography>
+                                    </div>
+                                    <div
+                                        style={{
+                                            height:
+                                                isFetching && _get(analysis, "mainSkillCountEntries", []).length === 0
+                                                    ? 400
+                                                    : _get(analysis, "mainSkillCountEntries", []).length * 40,
+                                            maxHeight: 400
+                                        }}
+                                    >
+                                        <FilterList
+                                            total={total}
+                                            isFetching={isFetching}
+                                            entries={_get(analysis, "mainSkillCountEntries", [])}
+                                            config={config}
+                                            configField="mainSkill"
+                                            configType="array"
+                                            pathname={location.pathname}
+                                        />
+                                    </div>
+                                </Paper>
+                            </Grid>
+                            {_get(analysis, "mainSkillSupportCountEntries", []).map((mainSkillSupportCountEntry) => {
+                                if (!mainSkillSupportCountEntry) {
+                                    return null;
+                                }
+                                const { mainSkillId, supportCountEntries } = mainSkillSupportCountEntry;
+                                return (
+                                    <Grid key={mainSkillId} item>
+                                        <Paper
+                                            style={{
+                                                maxHeight: 424,
+                                                width: "100%",
+                                                maxWidth: "100%"
+                                            }}
+                                        >
+                                            <div style={{ height: 24, maxHeight: 24 }}>
+                                                <Typography>{mainSkillId} Supports</Typography>
+                                            </div>
+                                            <div
+                                                style={{
+                                                    height: supportCountEntries.length * 40,
+                                                    maxHeight: 400
+                                                }}
+                                            >
+                                                <FilterList
+                                                    total={_get(
+                                                        _get(analysis, "mainSkillCountEntries", []).find(
+                                                            (x) => x.skillId === mainSkillId
+                                                        ),
+                                                        "count",
+                                                        0
+                                                    )}
+                                                    isFetching={isFetching}
+                                                    entries={supportCountEntries.map((entry) => ({ ...entry, mainSkillId }))}
+                                                    config={config}
+                                                    getConfigValue={_get(allAnalysisMetaMapping, [
+                                                        "mainSkillSupportCountEntries",
+                                                        "getConfigValue"
+                                                    ])}
+                                                    configField="mainSkillSupport"
+                                                    configType="mainSkillSupportArray"
+                                                    pathname={location.pathname}
+                                                />
+                                            </div>
+                                        </Paper>
+                                    </Grid>
+                                );
+                            })}
+                            <Grid item>
+                                <Paper
+                                    style={{
+                                        maxHeight: 424,
+                                        width: "100%",
+                                        maxWidth: "100%"
+                                    }}
+                                >
+                                    <div style={{ height: 24, maxHeight: 24 }}>
+                                        <Typography>Keystones&nbsp;/&nbsp;Ascendency</Typography>
+                                    </div>
+                                    <div
+                                        style={{
+                                            height: _get(analysis, "allKeystoneCountEntries", []).length * 40,
+                                            maxHeight: 400
+                                        }}
+                                    >
+                                        <FilterList
+                                            total={total}
+                                            isFetching={isFetching}
+                                            entries={_get(analysis, "allKeystoneCountEntries", [])}
+                                            config={config}
+                                            configField="keystone"
+                                            configType="array"
+                                            pathname={location.pathname}
+                                            renderTooltip={renderTooltip}
+                                        />
+                                    </div>
                                 </Paper>
                             </Grid>
                             <Grid item>
                                 <Paper
                                     style={{
-                                        maxHeight: 390,
-                                        height: isFetching ? 390 : _get(analysis, "allKeystoneCountEntries", []).length * 34,
-                                        width: "100%",
-                                        maxWidth: "100%"
-                                    }}
-                                >
-                                    <FilterList
-                                        total={total}
-                                        isFetching={isFetching}
-                                        entries={_get(analysis, "allKeystoneCountEntries", [])}
-                                        config={config}
-                                        configField="keystone"
-                                        configType="array"
-                                        pathname={location.pathname}
-                                        renderTooltip={renderTooltip}
-                                    />
-                                </Paper>
-                            </Grid>
-                            <Grid item>
-                                <Paper
-                                    style={{
-                                        maxHeight: 390,
-                                        height: isFetching ? 390 : _get(analysis, "allSkillCountEntries", []).length * 34,
+                                        maxHeight: 400,
+                                        height: _get(analysis, "allSkillCountEntries", []).length * 400,
                                         width: "100%",
                                         maxWidth: "100%"
                                     }}
@@ -928,8 +1131,8 @@ function BuildsPagePart2(props) {
                             <Grid item>
                                 <Paper
                                     style={{
-                                        maxHeight: 390,
-                                        height: isFetching ? 390 : _get(analysis, "weaponTypeCountEntries", []).length * 34,
+                                        maxHeight: 400,
+                                        height: _get(analysis, "weaponTypeCountEntries", []).length * 40,
                                         width: "100%",
                                         maxWidth: "100%"
                                     }}
@@ -940,6 +1143,7 @@ function BuildsPagePart2(props) {
                                         entries={_get(analysis, "weaponTypeCountEntries", [])}
                                         config={config}
                                         configType="weapon/offhand"
+                                        getConfigValue={allAnalysisMetaMapping["weaponTypeCountEntries"].getConfigValue}
                                         pathname={location.pathname}
                                     />
                                 </Paper>

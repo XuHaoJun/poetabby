@@ -67,6 +67,7 @@ namespace RCB.JavaScript.Models
         connectionString = DbConfig.GetDefaultConnectionString(databaseUrl);
       }
       optionsBuilder.UseNpgsql(connectionString);
+      optionsBuilder.EnableSensitiveDataLogging();
     }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -82,6 +83,9 @@ namespace RCB.JavaScript.Models
           .HasMethod("gin");
       modelBuilder.Entity<PoeCharacterModel>()
           .HasIndex(c => c.Items)
+          .HasMethod("gin");
+      modelBuilder.Entity<PoeCharacterModel>()
+          .HasIndex(c => c.CountAnalysis)
           .HasMethod("gin");
       // modelBuilder.Entity<PoeCharacterModel>()
       //     .Property(c => c.Depth)

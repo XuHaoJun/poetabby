@@ -6,7 +6,7 @@ import _cloneDeep from "lodash/cloneDeep";
 import _get from "lodash/get";
 import _keys from "lodash/keys";
 
-import { makeStyles } from "@material-ui/core/styles";
+import { makeStyles, withStyles } from "@material-ui/core/styles";
 import Table from "@material-ui/core/Table";
 import TableBody from "@material-ui/core/TableBody";
 import TableCell from "@material-ui/core/TableCell";
@@ -32,26 +32,17 @@ import Grid from "@material-ui/core/Grid";
 
 const allKeystones = treeData.getKeystones();
 
-const useStyles = makeStyles({
-    table: {
-        minWidth: "100%",
-        maxWidth: "100%"
-    }
-});
-
-const useStylesBootstrap = makeStyles((theme) => ({
+const BootstrapTooltip = withStyles((theme) => ({
     arrow: {
         color: theme.palette.common.black
     },
     tooltip: {
         backgroundColor: theme.palette.common.black
     }
-}));
-
-function BootstrapTooltip(props) {
-    const classes = useStylesBootstrap();
+}))(function BootstrapTooltip(props) {
+    const classes = props.classes;
     return <LazyTooltip arrow classes={classes} {...props} />;
-}
+});
 
 function reverseArrange(arrange) {
     if (arrange === "desc") {
@@ -62,7 +53,6 @@ function reverseArrange(arrange) {
 }
 
 export function CharacterTable(props) {
-    const classes = useStyles();
     const data = props.data || [];
     const isFetching = _get(props, "isFetching", false);
     const backBuildsPageUrl = props.backBuildsPageUrl;
@@ -94,7 +84,7 @@ export function CharacterTable(props) {
         }
     }
     return (
-        <Table className={classes.table} aria-label="simple table" size="small">
+        <Table aria-label="simple table" size="small">
             <TableHead>
                 <TableRow>
                     <TableCell align="center" padding="none">
@@ -160,7 +150,7 @@ export function CharacterTable(props) {
                                     width: 170
                                 }}
                             >
-                                <Tooltip placement="top" title={pchar.characterName.length > 19 ? pchar.characterName : ""}>
+                                <Tooltip placement="top" title={pchar.characterName} enterDelay={1000} enterNextDelay={1000}>
                                     <Button
                                         style={{
                                             textTransform: "none"
@@ -249,25 +239,23 @@ export function CharacterTable(props) {
                                             </React.Fragment>
                                         )}
                                     >
-                                        <div>
-                                            <Grid container justify="center" alignItems="center">
-                                                {keystones.slice(0, keystones.length <= 3 ? 3 : 2).map((keystone) => {
-                                                    return (
-                                                        <Grid item key={keystone.skill}>
-                                                            <img
-                                                                src={`//web.poecdn.com/image/${keystone.icon}`}
-                                                                style={{ width: 40, height: 40 }}
-                                                            />
-                                                        </Grid>
-                                                    );
-                                                })}
-                                                {keystones.length > 3 ? (
-                                                    <Grid item style={{ width: 40 }}>
-                                                        +{keystones.length - 2}
+                                        <Grid container justify="center" alignItems="center">
+                                            {keystones.slice(0, keystones.length <= 3 ? 3 : 2).map((keystone) => {
+                                                return (
+                                                    <Grid item key={keystone.skill}>
+                                                        <img
+                                                            src={`//web.poecdn.com/image/${keystone.icon}`}
+                                                            style={{ width: 40, height: 40 }}
+                                                        />
                                                     </Grid>
-                                                ) : null}
-                                            </Grid>
-                                        </div>
+                                                );
+                                            })}
+                                            {keystones.length > 3 ? (
+                                                <Grid item style={{ width: 40 }}>
+                                                    +{keystones.length - 2}
+                                                </Grid>
+                                            ) : null}
+                                        </Grid>
                                     </BootstrapTooltip>
                                 </div>
                             </TableCell>

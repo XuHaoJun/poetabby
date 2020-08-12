@@ -39,14 +39,14 @@ export default function MyAppBar(props) {
                             toast.info(
                                 <div>
                                     <h3>Dev Warning</h3>
-                                    <h4>Usually take 5~15 sec delay over 1000+ characters if cache miss.</h4>
+                                    <h4><s>Usually take 5~15 sec delay over 1000+ characters if cache miss.</s></h4>
                                     <p>
                                         still in the development stage, not start optmize work,and will do optmize after extend
                                         POB for DPS show.
                                     </p>
                                     <p>
-                                        because server-side scan each char's items and passives and couting in realtime(sql COUNT
-                                        really slow),should save count result for each character and then sum count for filtered
+                                        <s>ecause server-side scan each char's items and passives and couting in realtime(sql COUNT
+                                        really slow)</s>b,should save count result for each character and then sum count for filtered
                                         chars.may be put filtering and suming in client-side?(poe.ninja do)
                                     </p>
                                 </div>

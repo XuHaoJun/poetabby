@@ -1,3 +1,6 @@
+using System.Xml.Serialization;
+using System.Text.Json.Serialization;
+
 
 namespace RCB.JavaScript.Models.Utils
 {
@@ -507,12 +510,37 @@ namespace RCB.JavaScript.Models.Utils
 
     private string idField;
 
-    /// <remarks/>
-    [System.Xml.Serialization.XmlAttributeAttribute()]
+    [JsonIgnore]
+    [XmlAttributeAttribute("collapsed")]
+    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
+    public string collapsedString
+    {
+      get; set;
+    }
+
+    [XmlIgnore]
+    private bool collapsedSet = false;
+
+    [XmlIgnore]
     public bool collapsed
     {
       get
       {
+        if (!collapsedSet)
+        {
+          if (!string.IsNullOrEmpty(collapsedString))
+          {
+            if (collapsedString.ToLower() == "true")
+            {
+              this.collapsedField = true;
+            }
+            else
+            {
+              this.collapsedField = false;
+            }
+            collapsedSet = true;
+          }
+        }
         return this.collapsedField;
       }
       set
@@ -659,12 +687,37 @@ namespace RCB.JavaScript.Models.Utils
       }
     }
 
-    /// <remarks/>
-    [System.Xml.Serialization.XmlAttributeAttribute()]
+    [JsonIgnore]
+    [XmlAttributeAttribute("mainActiveSkillCalcs")]
+    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
+    public string mainActiveSkillCalcsString
+    {
+      get; set;
+    }
+
+    [XmlIgnore]
+    private bool mainActiveSkillCalcsSet = false;
+
+    [XmlIgnore]
     public byte mainActiveSkillCalcs
     {
       get
       {
+        if (!mainActiveSkillCalcsSet)
+        {
+          if (!string.IsNullOrEmpty(mainActiveSkillCalcsString))
+          {
+            if (mainActiveSkillCalcsString == "nil")
+            {
+              this.mainActiveSkillCalcsField = 1;
+            }
+            else
+            {
+              byte.TryParse(mainActiveSkillCalcsString, out this.mainActiveSkillCalcsField);
+            }
+          }
+          mainActiveSkillCalcsSet = true;
+        }
         return this.mainActiveSkillCalcsField;
       }
       set
@@ -715,12 +768,37 @@ namespace RCB.JavaScript.Models.Utils
       }
     }
 
-    /// <remarks/>
-    [System.Xml.Serialization.XmlAttributeAttribute()]
+    [JsonIgnore]
+    [XmlAttributeAttribute("mainActiveSkill")]
+    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
+    public string mainActiveSkillString
+    {
+      get; set;
+    }
+
+    [XmlIgnore]
+    private bool mainActiveSkillSet = false;
+
+    [XmlIgnore]
     public byte mainActiveSkill
     {
       get
       {
+        if (!mainActiveSkillSet)
+        {
+          if (!string.IsNullOrEmpty(mainActiveSkillString))
+          {
+            if (mainActiveSkillString == "nil")
+            {
+              this.mainActiveSkillField = 1;
+            }
+            else
+            {
+              byte.TryParse(mainActiveSkillString, out this.mainActiveSkillField);
+            }
+          }
+          mainActiveSkillSet = true;
+        }
         return this.mainActiveSkillField;
       }
       set
@@ -775,12 +853,37 @@ namespace RCB.JavaScript.Models.Utils
 
     private bool skillPartCalcsFieldSpecified;
 
-    /// <remarks/>
-    [System.Xml.Serialization.XmlAttributeAttribute()]
+    [JsonIgnore]
+    [XmlAttributeAttribute("enableGlobal2")]
+    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
+    public string enableGlobal2String
+    {
+      get; set;
+    }
+
+    [XmlIgnore]
+    private bool enableGlobal2Set = false;
+
+    [XmlIgnore]
     public bool enableGlobal2
     {
       get
       {
+        if (!enableGlobal2Set)
+        {
+          if (!string.IsNullOrEmpty(enableGlobal2String))
+          {
+            if (enableGlobal2String.ToLower() == "true")
+            {
+              this.enableGlobal2Field = true;
+            }
+            else
+            {
+              this.enableGlobal2Field = false;
+            }
+            enableGlobal2Set = true;
+          }
+        }
         return this.enableGlobal2Field;
       }
       set

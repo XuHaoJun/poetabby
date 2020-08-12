@@ -11,6 +11,7 @@ import { wait } from "domain-wait";
 
 import { withRouter } from "react-router";
 import { Link as RouterLink } from "react-router-dom";
+import NotFoundPage from "@Pages/NotFoundPage";
 import Link from "@material-ui/core/Link";
 import HomeIcon from "@material-ui/icons/Home";
 
@@ -461,6 +462,9 @@ class CharacterPage extends React.Component {
     render() {
         if (this.props.readyFirstRenderOnServer) {
             return null;
+        }
+        if (this.props.lastError) {
+            return <NotFoundPage />;
         }
         const characterName = this.props.character ? this.props.character.characterName : this.props.match.params.characterName;
         const accountName = this.props.character ? this.props.character.accountName : this.props.match.params.accountName;

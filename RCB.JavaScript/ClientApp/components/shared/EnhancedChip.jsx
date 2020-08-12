@@ -15,11 +15,9 @@ function isReactFragment(variableToInspect) {
     return variableToInspect === React.Fragment;
 }
 
-export default withStyles(chipStyles)(function EnhancedChip(props, ref) {
+export default withStyles(chipStyles)(function EnhancedChip(props) {
     const { variant, size, classes, color, onDelete, deleteIcon, ...others } = props;
-    console.log(deleteIcon);
     if (onDelete && isReactFragment(deleteIcon) && _isArray(deleteIcon.props.children)) {
-        console.log("haha");
         const small = size === "small";
         const customClasses = clsx({
             [classes.deleteIconSmall]: small,
@@ -27,9 +25,8 @@ export default withStyles(chipStyles)(function EnhancedChip(props, ref) {
             [classes[`deleteIconOutlinedColor${capitalize(color)}`]]: color !== "default" && variant === "outlined"
         });
 
-        const deleteIcons = deleteIcon.props.children.map((child) => {
+        const deleteIcons = deleteIcon.props.children.map((child, index) => {
             if (React.isValidElement(child)) {
-                console.log("child", child);
                 const handleDeleteIconClick = (event) => {
                     // Stop the event from bubbling up to the `Chip`
                     event.stopPropagation();
@@ -37,15 +34,18 @@ export default withStyles(chipStyles)(function EnhancedChip(props, ref) {
                         onDelete(event, child);
                     }
                 };
-                return React.cloneElement(child, {
-                    className: clsx(child.props.className, classes.deleteIcon, customClasses),
-                    onClick: handleDeleteIconClick
-                });
+                return (
+                    <React.Fragment key={index}>
+                        {React.cloneElement(child, {
+                            className: clsx(child.props.className, classes.deleteIcon, customClasses),
+                            onClick: handleDeleteIconClick
+                        })}
+                    </React.Fragment>
+                );
             } else {
-                return child;
+                return <React.Fragment key={index}>{child}</React.Fragment>;
             }
         });
-
         return <Chip {...props} deleteIcon={<React.Fragment>{deleteIcons}</React.Fragment>} />;
     } else {
         return <Chip {...props} />;

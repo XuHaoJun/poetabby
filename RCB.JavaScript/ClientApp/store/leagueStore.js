@@ -12,8 +12,12 @@ const slice = createSlice({
     initialState: {
         isFetching: false,
         delayClearTimer: null,
+
         defaultLeagueName: "Harvest",
         leagueName: "Harvest",
+
+        db: [],
+
         total: 0,
         entries: [],
         analysis: {}
@@ -38,7 +42,7 @@ const slice = createSlice({
         putData: (state, action) => {
             const { total, entries, ...analysis } = action.payload;
             const classCountEntries = _get(analysis, "classCountEntries", []);
-            const minNumClass = 19;
+            const minNumClass = 18;
             if (classCountEntries.length < minNumClass) {
                 const injectClasses = poeClasses.ascendancy
                     .filter((asceClass) => {
@@ -82,8 +86,8 @@ export const actionCreators = {
 
         if (!result.hasErrors) {
             dispatch(slice.actions.putData(result.value));
-        } else if (_get(result.lastError, "response.status") === 404) {
-            dispatch(slice.actions.putData({ total: 0, entries: [], analysis: {} }));
+        } else if (_get(result, "lastError.response.status") === 404) {
+            dispatch(slice.actions.clear());
         }
 
         dispatch(slice.actions.setFetching(false));

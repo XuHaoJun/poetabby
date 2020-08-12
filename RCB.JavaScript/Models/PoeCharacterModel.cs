@@ -29,6 +29,56 @@ namespace RCB.JavaScript.Models
     public PoeTwitch Twitch { get; set; }
   }
 
+  public class UniqueEntry
+  {
+    public string ItemName { get; set; }
+    public string ItemType { get; set; }
+    public int Count { get; set; }
+  }
+  public class SkillEntry
+  {
+    public string GemId { get; set; }
+    public string SkillId { get; set; }
+    public string NameSpec { get; set; }
+    public int Count { get; set; }
+  }
+
+  public class KeystoneEntry
+  {
+    public string SkillId { get; set; }
+    public int Count { get; set; }
+  }
+
+  public class WeaponTypeEntry
+  {
+    public string WeaponType { get; set; }
+    public string OffhandType { get; set; }
+    public int Count { get; set; }
+  }
+
+  public class ClassEntry
+  {
+    public string Class { get; set; }
+    public int Count { get; set; }
+  }
+
+  public class MainSkillSupportCountEntry
+  {
+    public string MainSkillId { get; set; }
+    public List<SkillEntry> SupportCountEntries { get; set; }
+  }
+
+  public class CountAnalysis
+  {
+    public UniqueEntry[] UniqueCountEntries { get; set; }
+    public SkillEntry[] MainSkillCountEntries { get; set; }
+    public SkillEntry[] AllSkillCountEntries { get; set; }
+    public KeystoneEntry[] AllKeystoneCountEntries { get; set; }
+    public WeaponTypeEntry[] WeaponTypeCountEntries { get; set; }
+    public ClassEntry[] ClassCountEntries { get; set; }
+    public MainSkillSupportCountEntry[] MainSkillSupportCountEntries { get; set; }
+  }
+
   public class PoeCharacterModel
   {
     [Key]
@@ -66,5 +116,7 @@ namespace RCB.JavaScript.Models
     public List<PoeItem> Items { get; set; }
     [Required]
     public System.DateTime UpdatedAt { get; set; }
+    [Column(TypeName = "jsonb")]
+    public CountAnalysis CountAnalysis { get; set; }
   }
 }

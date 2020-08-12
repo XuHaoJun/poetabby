@@ -36,12 +36,12 @@ namespace RCB.JavaScript.Models.Utils
   public class PoeFetcher
   {
     private static readonly HttpClient HttpClient;
-    static public async Task<List<PoeCharacterModel>> GetCharactersFromLadder(string leagueName, int limit = 0, int offset = 0)
+
+    static public async IAsyncEnumerable<PoeCharacterModel> GetCharactersFromLadderIterator(string leagueName, int limit = 10, int offset = 0)
     {
       var HttpClient = new HttpClient();
       string urlParams = (offset > 0 ? $"offset={offset}" : "") + (offset > 0 ? "&" : "") + (limit > 0 ? $"limit={limit}" : "");
       var httpLadderRes = await HttpClient.GetAsync($"http://www.pathofexile.com/api/ladders/{leagueName}?{urlParams}");
-      List<PoeCharacterModel> poeChars = new List<PoeCharacterModel>();
       if (httpLadderRes.IsSuccessStatusCode)
       {
         string ladderBody = await httpLadderRes.Content.ReadAsStringAsync();
@@ -57,7 +57,7 @@ namespace RCB.JavaScript.Models.Utils
           string itemsJson = itemsRes.IsSuccessStatusCode ? await itemsRes.Content.ReadAsStringAsync() : "";
           if (passivesJson.Length > 0 && itemsJson.Length > 0)
           {
-            string xml = PobUtils.GetXml(passivesJson, itemsJson);
+            string xml = PobUtils.GetBuildXmlByJsons(passivesJson, itemsJson);
             PathOfBuilding pob;
             try
             {
@@ -79,6 +79,7 @@ namespace RCB.JavaScript.Models.Utils
               if (e is System.InvalidOperationException || e is System.Xml.XmlException)
               {
                 pob = null;
+                System.Console.WriteLine(e.ToString());
               }
               else
               {
@@ -89,7 +90,7 @@ namespace RCB.JavaScript.Models.Utils
             {
               PoeItems items = JsonConvert.DeserializeObject<PoeItems>(itemsJson);
               PoePassives passives = JsonConvert.DeserializeObject<PoePassives>(passivesJson);
-              string code = PobUtils.GetCode(xml);
+              string code = PobUtils.XmlToCode(xml);
               var poeChar = new PoeCharacterModel()
               {
                 CharacterId = entry.Character.Id,
@@ -111,10 +112,20 @@ namespace RCB.JavaScript.Models.Utils
                 Items = new List<PoeItem>() { }.Concat(items.items.Concat(passives.items.Select(i => i.ToPoeItem()))).ToList(),
                 UpdatedAt = System.DateTime.UtcNow,
               };
-              poeChars.Add(poeChar);
+              yield return poeChar;
             }
           }
+          await Task.Delay(500);
         }
+      }
+    }
+
+    static public async Task<List<PoeCharacterModel>> GetCharactersFromLadder(string leagueName, int limit = 10, int offset = 0)
+    {
+      List<PoeCharacterModel> poeChars = new List<PoeCharacterModel>();
+      await foreach (PoeCharacterModel pchar in GetCharactersFromLadderIterator(leagueName, limit, offset))
+      {
+        poeChars.Add(pchar);
       }
       return poeChars;
     }

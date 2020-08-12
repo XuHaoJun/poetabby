@@ -11,12 +11,17 @@ const slice = createSlice({
     name: "character",
     initialState: {
         isFetching: false,
+        lastError: null,
         character: null
     },
     reducers: {
+        setLastError: (state, action) => {
+            const lastError = action.payload;
+            state.lastError = lastError;
+        },
         setFetching: (state, action) => {
             const isFetching = action.payload;
-            return { ...state, isFetching };
+            state.isFetching = isFetching;
         },
         putData: (state, action) => {
             const character = action.payload;
@@ -30,6 +35,8 @@ const slice = createSlice({
                 )
                 .map((item) => {
                     const inventoryId = item.inventoryId;
+                    // TODO
+                    // may be move to server-side?
                     const _groupIndexs = _groupBy(
                         _get(item, "sockets", []).map((s, index) => {
                             return { ...s, index };
@@ -99,6 +106,9 @@ export const actionCreators = {
 
         if (!result.hasErrors) {
             dispatch(slice.actions.putData(result.value));
+            dispatch(slice.actions.setLastError(null));
+        } else {
+            dispatch(slice.actions.setLastError(_get(result, "lastError", null)));
         }
 
         dispatch(slice.actions.setFetching(false));

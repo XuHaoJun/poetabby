@@ -50,6 +50,8 @@ namespace RCB.JavaScript
       // Add your own services here.
       services.AddScoped<AccountService>();
       services.AddScoped<PersonService>();
+      services.AddScoped<LeagueService>();
+      services.AddScoped<CharacterService>();
 
       services.AddDbContext<RCB.JavaScript.Models.PoeDbContext>();
 
