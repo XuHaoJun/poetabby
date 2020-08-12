@@ -97,4 +97,14 @@
     </ItemGroup>
   </Target>
 
+  <Target Name="PublishPob" AfterTargets="ComputeFilesToPublish">
+    <ItemGroup>
+      <DistFiles Include="ExtraFiles\pob\**;"/>
+      <ResolvedFileToPublish Include="@(DistFiles->'%(FullPath)')" Exclude="@(ResolvedFileToPublish)">
+        <RelativePath>%(DistFiles.Identity)</RelativePath>
+        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      </ResolvedFileToPublish>
+    </ItemGroup>
+  </Target>
+
 </Project>

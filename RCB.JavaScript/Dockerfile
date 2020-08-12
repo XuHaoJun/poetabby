@@ -27,6 +27,6 @@ RUN dotnet publish "RCB.JavaScript.csproj" -c Release -o /app/publish
 FROM base AS final
 WORKDIR /app
 COPY --from=publish /app/publish .
-COPY --from=build "/src/RCB.JavaScript/ExtraFiles" ./ExtraFiles
+# COPY --from=build "/src/RCB.JavaScript/ExtraFiles" ./ExtraFiles
 # ENTRYPOINT ["dotnet", "RCB.JavaScript.dll"]
 CMD ASPNETCORE_URLS=http://*:$PORT dotnet RCB.JavaScript.dll
