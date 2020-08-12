@@ -220,9 +220,14 @@ namespace RCB.JavaScript.Models.Utils
 
     static private string _GetBuildXml(MyString arg1, MyString arg2 = null)
     {
+      string pobDirPath = GetPobDirPath();
+      string pobLuaBinPath = GetPobLuaBinPath();
+      if (!Directory.Exists(pobDirPath) || !File.Exists(pobLuaBinPath))
+      {
+        return null;
+      }
       _LuaState = _LuaState == null ? CreateLuaState() : _LuaState;
       Lua state = _LuaState;
-      string pobDirPath = GetPobDirPath();
       object[] res;
       try
       {
@@ -297,22 +302,29 @@ namespace RCB.JavaScript.Models.Utils
       }
     }
 
-    static public string GetBuildXml2(string passivesJson, string itemsJson)
+    static public string GetPobLuaBinPath()
     {
-      string tmpPath = Path.GetTempPath();
-      string passivesFilePath = Path.Combine(tmpPath, Guid.NewGuid().ToString() + ".json");
-      File.WriteAllText(passivesFilePath, passivesJson);
-      string itemsFilePath = Path.Combine(tmpPath, Guid.NewGuid().ToString() + ".json");
-      File.WriteAllText(itemsFilePath, itemsJson);
       bool isWindows = System.Runtime.InteropServices.RuntimeInformation
                                                      .IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Windows);
       string luabinName = isWindows ? "lua52.exe" : "lua52";
       string pobDirPath = GetPobDirPath();
       string pobLuaBinPath = Path.Combine(pobDirPath, luabinName);
+      return pobLuaBinPath;
+    }
+
+    static public string GetBuildXml2(string passivesJson, string itemsJson)
+    {
+      string pobDirPath = GetPobDirPath();
+      string pobLuaBinPath = GetPobLuaBinPath();
       if (!Directory.Exists(pobDirPath) || !File.Exists(pobLuaBinPath))
       {
         return "";
       }
+      string tmpPath = Path.GetTempPath();
+      string passivesFilePath = Path.Combine(tmpPath, Guid.NewGuid().ToString() + ".json");
+      File.WriteAllText(passivesFilePath, passivesJson);
+      string itemsFilePath = Path.Combine(tmpPath, Guid.NewGuid().ToString() + ".json");
+      File.WriteAllText(itemsFilePath, itemsJson);
       if (!File.Exists("/lib/x86_64-linux-gnu/libreadline.so.6"))
       {
         if (File.Exists("/lib/x86_64-linux-gnu/libreadline.so.7"))
