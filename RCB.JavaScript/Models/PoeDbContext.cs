@@ -48,9 +48,12 @@ namespace RCB.JavaScript.Models
   public class PoeDbContext : DbContext
   {
     public DbSet<PoeCharacterModel> Characters { get; set; }
-    public DbSet<CharacterUniqueCount> CharacterUniqueCounts { get; set; }
+
+    public DbSet<PoeLeagueModel> Leagues { get; set; }
+
     public static readonly ILoggerFactory MyLoggerFactory
         = LoggerFactory.Create(builder => { builder.AddConsole(); });
+
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
       optionsBuilder.UseLoggerFactory(MyLoggerFactory);
@@ -60,7 +63,16 @@ namespace RCB.JavaScript.Models
       string connectionString;
       if (String.IsNullOrWhiteSpace(databaseUrl))
       {
-        connectionString = "Host=localhost;Database=poetabby;Username=postgres;Password=";
+        string hostname;
+        if (Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true")
+        {
+          hostname = "host.docker.internal";
+        }
+        else
+        {
+          hostname = "localhost";
+        }
+        connectionString = $"Host={hostname};Database=poetabby;Username=postgres;Password=";
       }
       else
       {
@@ -95,9 +107,10 @@ namespace RCB.JavaScript.Models
           .Property(c => c.Rank)
           .HasDefaultValue(ladderSize + 1);
 
-      modelBuilder.Entity<CharacterUniqueCount>()
-          .HasNoKey()
-          .ToView(null);
+
+      modelBuilder.Entity<PoeLeagueModel>()
+          .HasIndex(l => l.LeagueId)
+          .IsUnique();
     }
   }
 }

@@ -206,8 +206,8 @@ export function CharacterTable(props) {
                                     <img src={PoeAvatars[pchar.class]} style={{ width: 50, height: 40 }} />
                                 </div>
                             </TableCell>
-                            <TableCell align="right">{pchar.lifeUnreserved}</TableCell>
-                            <TableCell align="right">{pchar.energyShield}</TableCell>
+                            <TableCell align="right">{_get(pchar, "lifeUnreserved", 0)}</TableCell>
+                            <TableCell align="right">{_get(pchar, "energyShield", 0)}</TableCell>
                             <TableCell align="right">{pchar.depth.default}</TableCell>
                             <TableCell align="center"></TableCell>
                             <TableCell align="center">

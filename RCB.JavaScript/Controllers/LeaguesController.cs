@@ -21,6 +21,9 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using JsonSerializer = System.Text.Json.JsonSerializer;
 
+using System.Data.HashFunction;
+using System.Data.HashFunction.xxHash;
+
 using RCB.JavaScript.Services;
 
 namespace RCB.JavaScript.Controllers
@@ -139,6 +142,10 @@ namespace RCB.JavaScript.Controllers
       this._logger = logger;
       this.leagueService = _leagueService;
 
+      // TODO
+      // move to Startup file or dbcontext?
+      SqlMapper.AddTypeHandler<PoeAccount>(new JsonConvertHandler<PoeAccount>());
+
       SqlMapper.AddTypeHandler<List<CharEntry>>(new JsonConvertHandler<List<CharEntry>>());
       SqlMapper.AddTypeHandler<List<UniqueEntry>>(new JsonConvertHandler<List<UniqueEntry>>());
       SqlMapper.AddTypeHandler<List<SkillEntry>>(new JsonConvertHandler<List<SkillEntry>>());
@@ -252,45 +259,116 @@ namespace RCB.JavaScript.Controllers
         return (includes, excludes);
       }
 
-      public string getCacheKey(string leagueName)
+      public string GetCacheKey()
       {
         List<string> all = new List<string> { };
-        all.Add(leagueName);
-        all.Add(characterId);
-        all.AddRange(items ?? new List<string> { });
-        all.AddRange(classes ?? new List<string> { });
-        all.AddRange(mainSkills ?? new List<string> { });
-        all.AddRange(mainSkillSupportsRaw ?? new List<string> { });
-        all.AddRange(allSkills ?? new List<string> { });
-        all.AddRange(keystones ?? new List<string> { });
-        all.AddRange(sort ?? new List<string> { });
-        all.AddRange(weaponTypes ?? new List<string> { });
-        all.AddRange(offhandTypes ?? new List<string> { });
+        if (characterId != null)
+        {
+          all.Add(characterId);
+        }
+        foreach (var ls in new List<string>[] {
+          items, classes, mainSkills, allSkills, keystones, sort, weaponTypes, offhandTypes
+         })
+        {
+          if (ls != null)
+          {
+            all.AddRange(ls.OrderBy(x => x));
+          }
+        }
+        if (mainSkillSupports != null)
+        {
+          foreach (var ls in mainSkillSupports.OrderBy(x => x))
+          {
+            if (ls != null)
+            {
+              all.AddRange(ls.OrderBy(x => x));
+            }
+          }
+        }
         all.Add($"{limit}");
         all.Add($"{offset}");
-        return String.Join("&", all);
+        all.Sort();
+        string keyNoHash = String.Join(",", all);
+        string key = xxHashFactory.Instance.Create().ComputeHash(keyNoHash).AsHexString();
+        return key;
       }
     }
 
-    [HttpGet("{leagueName}/dumps/characters")]
-    public async Task<ActionResult<GetCharactersConfig>> GetCharactersDump(
-          string leagueName,
-          [FromQuery] GetCharactersConfig config
-    )
+    [HttpGet("")]
+    public async Task<ActionResult<List<PoeLeagueModel>>> GetLeagues()
     {
-      config.Normalized();
-      System.GC.Collect();
-      return config;
+      var leagues = await PoeContext.Leagues.ToListAsync();
+      if (leagues == null || leagues.Count == 0)
+      {
+        return NotFound();
+      }
+      else
+      {
+        return leagues;
+      }
     }
+
+    private static string DEFAULT_LEAGUE_NAME = "defaultLeague";
+
+    [HttpGet("{leagueName}")]
+    public async Task<ActionResult<PoeLeagueModel>> GetDefaultLeague(string leagueName)
+    {
+      if (leagueName == DEFAULT_LEAGUE_NAME)
+      {
+        var defaultLeague = await leagueService.GetDefaultLeague();
+        if (defaultLeague == null)
+        {
+          return NotFound();
+        }
+        else
+        {
+          return defaultLeague;
+        }
+      }
+      else
+      {
+        var league = await PoeContext.Leagues.Where(x => x.LeagueId == leagueName).FirstOrDefaultAsync();
+        if (league == null)
+        {
+          return NotFound();
+        }
+        else
+        {
+          return league;
+        }
+      }
+    }
+
+    private static string CHARACTERS_CACHE_PREFIX = "poetabby:Leagues:CharactersCache";
 
     [HttpGet("{leagueName}/characters")]
     public async Task<ActionResult<CharacterAnalysis>> GetCharacters(
-          string leagueName,
+          [FromRoute(Name = "leagueName")] string _leagueName,
           [FromQuery] GetCharactersConfig config
     )
     {
       config.Normalized();
-      var cacheKey = config.getCacheKey(leagueName);
+      string leagueName;
+      if (_leagueName == DEFAULT_LEAGUE_NAME)
+      {
+        PoeLeagueModel defaultLeague = await leagueService
+            .GetDefaultLeagueQuery()
+            .Select(x => new PoeLeagueModel { LeagueId = x.LeagueId })
+            .SingleOrDefaultAsync();
+        if (defaultLeague != null)
+        {
+          leagueName = defaultLeague.LeagueId;
+        }
+        else
+        {
+          leagueName = _leagueName;
+        }
+      }
+      else
+      {
+        leagueName = _leagueName;
+      }
+      var cacheKey = $"{CHARACTERS_CACHE_PREFIX}:{leagueName}:{config.GetCacheKey()}";
       var encodedResult = await distributedCache.GetAsync(cacheKey);
       if (encodedResult != null)
       {
@@ -310,14 +388,13 @@ namespace RCB.JavaScript.Controllers
         {
           int expirMulti = (int)(result.Total / 1000);
           expirMulti = expirMulti < 1 ? 1 : expirMulti;
-          expirMulti = expirMulti >= 5 ? 5 : expirMulti;
+          expirMulti = expirMulti >= 2 ? 2 : expirMulti;
           var jsonBytes = JsonSerializer.SerializeToUtf8Bytes(result);
           var options = new DistributedCacheEntryOptions()
                         .SetSlidingExpiration(TimeSpan.FromMinutes(3 * expirMulti))
                         .SetAbsoluteExpiration(DateTime.Now.AddHours(1 * expirMulti));
           await distributedCache.SetAsync(cacheKey, jsonBytes, options);
           Response.Headers.Add("Cache-Control", "public, max-age=180");
-          System.GC.Collect();
           return result;
         }
       }

@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
-    <TargetFramework>netcoreapp3.1</TargetFramework>
+    <TargetFramework>netcoreapp5.0</TargetFramework>
     <IncludeOpenAPIAnalyzers>true</IncludeOpenAPIAnalyzers>
     <IsPackable>false</IsPackable>
   </PropertyGroup>
@@ -13,6 +13,10 @@
     <DockerfileContext>.</DockerfileContext>
   </PropertyGroup>
 
+  <PropertyGroup>
+    <DefineConstants>;XLUA_GENERAL</DefineConstants>
+  </PropertyGroup>
+
   <ItemGroup>
     <!-- Files not to publish (note that the 'dist' subfolders are re-added below) -->
     <Compile Remove="obj\bin\**" />
@@ -21,6 +25,12 @@
     <Content Remove="logs\**" />
     <Content Remove="wwwroot\**" />
     <Content Remove="ClientApp\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+   <Reference Include="XLua">
+     <HintPath>Models\Utils\XLua\Lib\XLua.Mini.dll</HintPath>
+   </Reference>
   </ItemGroup>
 
   <ItemGroup>
@@ -42,26 +52,27 @@
     <PackageReference Include="Dapper" Version="2.0.35" />
     <PackageReference Include="Dapper.SqlBuilder" Version="2.0.35" />
     <PackageReference Include="FlexLabs.EntityFrameworkCore.Upsert" Version="3.1.0" />
-    <PackageReference Include="Microsoft.AspNetCore.Mvc.NewtonsoftJson" Version="3.1.7" />
-    <PackageReference Include="Microsoft.AspNetCore.SpaServices" Version="3.1.7" />
-    <PackageReference Include="Microsoft.AspNetCore.SpaServices.Extensions" Version="3.1.7" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="3.1.7" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="3.1.7">
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.NewtonsoftJson" Version="5.0.0-preview.7.20365.19" />
+    <PackageReference Include="Microsoft.AspNetCore.SpaServices" Version="5.0.0-preview.7.20365.19" />
+    <PackageReference Include="Microsoft.AspNetCore.SpaServices.Extensions" Version="5.0.0-preview.7.20365.19" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="5.0.0-preview.7.20365.15" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="5.0.0-preview.7.20365.15">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
-    <PackageReference Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="3.1.7" />
-    <PackageReference Include="Microsoft.Extensions.Hosting" Version="3.1.7" />
+    <PackageReference Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="5.0.0-preview.7.20365.4" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="5.0.0-preview.7.20364.11" />
     <PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.10.9" />
     <PackageReference Include="NeoLua" Version="1.3.11" />
     <PackageReference Include="Newtonsoft.Json" Version="12.0.3" />
     <PackageReference Include="NLua" Version="1.5.1" />
-    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="3.1.4" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="5.0.0-preview7" />
     <PackageReference Include="Serilog" Version="2.9.0" />
     <PackageReference Include="Serilog.AspNetCore" Version="3.4.0" />
     <PackageReference Include="Serilog.Extensions.Logging" Version="3.0.1" />
     <PackageReference Include="Serilog.Sinks.Console" Version="3.1.1" />
     <PackageReference Include="Serilog.Sinks.File" Version="4.1.0" />
+    <PackageReference Include="System.Data.HashFunction.xxHash" Version="2.0.0" />
     <PackageReference Include="zlib.net" Version="1.0.4" />
   </ItemGroup>
 
@@ -99,7 +110,7 @@
 
   <Target Name="PublishPob" AfterTargets="ComputeFilesToPublish">
     <ItemGroup>
-      <DistFiles Include="ExtraFiles\pob\**;"/>
+      <DistFiles Include="ExtraFiles\pob\**;" />
       <ResolvedFileToPublish Include="@(DistFiles->'%(FullPath)')" Exclude="@(ResolvedFileToPublish)">
         <RelativePath>%(DistFiles.Identity)</RelativePath>
         <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>

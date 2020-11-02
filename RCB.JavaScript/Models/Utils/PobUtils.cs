@@ -1,3 +1,4 @@
+
 using System;
 using System.Diagnostics;
 using System.IO;
@@ -5,6 +6,7 @@ using System.Xml;
 using System.Xml.Serialization;
 using NLua;
 using System.Linq;
+using System.Runtime.InteropServices;
 
 namespace RCB.JavaScript.Models.Utils
 {
@@ -30,6 +32,39 @@ namespace RCB.JavaScript.Models.Utils
       }
       return System.Convert.ToBase64String(bytes).Replace("+", "-").Replace("/", "_");
     }
+
+    [DllImport("libc", EntryPoint = "malloc_trim")]
+    private static extern int malloc_trim(int pad);
+
+    private static bool? notFound_malloc_trim = null;
+    public static int try_malloc_trim(int pad)
+    {
+      if (notFound_malloc_trim == null)
+      {
+        try
+        {
+          notFound_malloc_trim = false;
+          return malloc_trim(pad);
+        }
+        catch (DllNotFoundException e)
+        {
+          notFound_malloc_trim = true;
+          return -1;
+        }
+      }
+      else
+      {
+        if (notFound_malloc_trim == true)
+        {
+          return -1;
+        }
+        else
+        {
+          return malloc_trim(pad);
+        }
+      }
+    }
+
 
     static public string CodeToXml(string _code)
     {
@@ -57,6 +92,14 @@ namespace RCB.JavaScript.Models.Utils
       {
         xr.Read();
         pob = (PathOfBuilding)serializer.Deserialize(xr);
+        if (pob.Skills == null)
+        {
+          pob.Skills = new PathOfBuildingSkills() { };
+        }
+        if (pob.Skills.Skill == null)
+        {
+          pob.Skills.Skill = new PathOfBuildingSkillsSkill[] { };
+        }
       }
       return pob;
     }
@@ -91,14 +134,19 @@ namespace RCB.JavaScript.Models.Utils
       return pobDirPath;
     }
 
-    static private Lua _LuaState = null;
-    static private int _LuaStateNumCalls = 0;
-    static private int _LuaStateLimitNumCalls = 10;
-
     static public Lua CreateLuaState()
     {
       Lua state = new Lua();
+      InitState(state);
+      return state;
+    }
+
+    static public void InitState(Lua state)
+    {
       string pobDirPath = GetPobDirPath();
+      state.DoString(@"
+collectgarbage(""generational"", 15, 70)
+      ");
       state["__pobDirPath__"] = pobDirPath;
       state.DoString("package.path = __pobDirPath__ .. '/?.lua;' .. package.path");
       state.DoString(@"
@@ -149,21 +197,6 @@ namespace RCB.JavaScript.Models.Utils
           io = { open=open, lines=lines, read=_oldIo.read, write=_oldIo.write, close=_oldIo.close, stderr=_oldIo.stderr }
       ");
       state.DoFile(Path.Combine(pobDirPath, "HeadlessWrapper.lua"));
-      return state;
-    }
-
-    static public void DisposeLuaState()
-    {
-      if (_LuaState != null)
-      {
-        _LuaState.DoString(@"
-          mainObject = nil
-          build = nil
-          collectgarbage('collect')
-          ");
-        _LuaState.Dispose();
-        _LuaState = null;
-      }
     }
 
     private class MyString
@@ -218,7 +251,7 @@ namespace RCB.JavaScript.Models.Utils
       }
     }
 
-    static private string _GetBuildXml(MyString arg1, MyString arg2 = null)
+    static private string _GetBuildXml(Lua state, MyString arg1, MyString arg2 = null)
     {
       string pobDirPath = GetPobDirPath();
       string pobLuaBinPath = GetPobLuaBinPath();
@@ -226,8 +259,6 @@ namespace RCB.JavaScript.Models.Utils
       {
         return null;
       }
-      _LuaState = _LuaState == null ? CreateLuaState() : _LuaState;
-      Lua state = _LuaState;
       object[] res;
       try
       {
@@ -246,7 +277,6 @@ namespace RCB.JavaScript.Models.Utils
       {
         // TODO
         // Log exception
-        DisposeLuaState();
         res = null;
       }
       if (res != null)
@@ -256,20 +286,7 @@ namespace RCB.JavaScript.Models.Utils
         {
           d.Dispose();
         }
-        state.DoString("toListMode()");
-        state.DoString("collectgarbage('collect')");
-        // TODO
-        // pob possible memory leak
-        // https://github.com/Openarl/PathOfBuilding/issues/1372
-        // if (_LuaStateNumCalls >= _LuaStateLimitNumCalls)
-        // {
-        //   _LuaStateNumCalls = 0;
-        //   DisposeLuaState();
-        // }
-        // else
-        // {
-        //   _LuaStateNumCalls += 1;
-        // }
+        state.DoString("collectgarbage()");
         return xml;
       }
       else
@@ -278,15 +295,27 @@ namespace RCB.JavaScript.Models.Utils
       }
     }
 
-    static public string GetBuildXmlByXml(string xmlString)
+    static public string GetBuildXmlByXml(string xmlString, Lua _state = null)
     {
-      return _GetBuildXml(new XmlString(xmlString));
+      var state = _state == null ? PobUtils.CreateLuaState() : _state;
+      var result = _GetBuildXml(state, new XmlString(xmlString));
+      if (_state == null)
+      {
+        state.Dispose();
+      }
+      return result;
     }
 
 
-    static public string GetBuildXmlByJsons(string passivesJson, string itemsJson)
+    static public string GetBuildXmlByJsons(string passivesJson, string itemsJson, Lua _state = null)
     {
-      return _GetBuildXml(new JsonString(passivesJson), new JsonString(itemsJson));
+      Lua state = _state == null ? CreateLuaState() : _state;
+      var result = _GetBuildXml(state, new JsonString(passivesJson), new JsonString(itemsJson));
+      if (_state == null)
+      {
+        state.Dispose();
+      }
+      return result;
     }
 
     static public string Foo()
@@ -296,10 +325,83 @@ namespace RCB.JavaScript.Models.Utils
         dynamic env = lua.CreateEnvironment();
         string pobDirPath = GetPobDirPath();
         env["__pobDirPath__"] = pobDirPath;
-        env["package"].path = Path.Combine(pobDirPath, "/?.lua");
-        env.dochunk("dofile(__pobDirPath__ .. HeadlessWrapper.lua')", "test.lua");
+        var g = (Neo.IronLua.LuaGlobal)env;
+        env.dochunk(@"
+          function foo()
+            local testTable = {}
+            for i=1, 1024*1024*2*5 do
+                testTable[i] = i
+            end
+          end
+          foo()
+        ", "test.lua");
+        g.Clear();
+        System.GC.Collect();
+        lua.Clear();
+        System.GC.Collect();
+        lua.Dispose();
+        System.GC.Collect();
         return "";
+        // g.LuaPackage.path += ";" + Path.Combine(pobDirPath, "?.lua"); 
+        // g.LuaPackage.path += ";" + Path.Combine(pobDirPath, "?.lua"); 
+        g.LuaPackage.path += ";" + Path.Combine(pobDirPath);
+        // env["package.path"] += ";" + Path.Combine(pobDirPath, "/?.lua");
+        // env.dochunk($"package.path = __pobDirPath__ .. '/?.lua;' .. package.path");
+        env.dochunk("print(package.path)");
+        env.dochunk("print(__pobDirPath__)");
+        // env.dochunk("package.config = '\\'");
+        env.dochunk("print(tostring(require('path')))");
+        env.dochunk(@"
+          local Path = require('path')
+          print(tostring(Path))
+          _oldLoadfile = loadfile
+          function loadfile(path)
+            if Path.isabs(path) then
+              return _oldLoadfile(path)
+            else
+              modifiedPath = __pobDirPath__ .. '/' .. path
+               print('loadfile: ' .. modifiedPath)
+              return _oldLoadfile(modifiedPath)
+            end
+          end
+          _oldDofile = dofile
+          function dofile(path)
+            if Path.isabs(path) then
+              return _oldDofile(path)
+            else
+              modifiedPath = __pobDirPath__ .. '/' .. path
+               print('dofile: ' .. modifiedPath)
+              return _oldDofile(modifiedPath)
+            end
+          end
+          _oldIo = io
+          local function open(path, mode)
+            if Path.isabs(path) then
+              return _oldIo.open(path)
+            else
+              if string.match(path, '%.png') or string.match(path, '%.jpg') then
+                return nil
+              else
+                modifiedPath = __pobDirPath__ .. '/' .. path
+                 print('io.open: ' .. modifiedPath)
+                return _oldIo.open(modifiedPath, mode)
+              end
+            end
+          end
+          local function lines(path)
+            if Path.isabs(path) then
+              return _oldIo.lines(path)
+            else
+              modifiedPath = __pobDirPath__ .. '/' .. path
+               print('io.lines: ' .. modifiedPath)
+              return _oldIo.lines(modifiedPath)
+            end
+          end
+          io = { open=open, lines=lines, read=_oldIo.read, write=_oldIo.write, close=_oldIo.close, stderr=_oldIo.stderr }
+      ");
+        env.dochunk("dofile(__pobDirPath__ .. '/' .. 'HeadlessWrapper.lua')");
       }
+      return "";
     }
 
     static public string GetPobLuaBinPath()

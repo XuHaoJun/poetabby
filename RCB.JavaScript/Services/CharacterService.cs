@@ -33,9 +33,13 @@ namespace RCB.JavaScript.Services
   public class CharacterService : ServiceBase
   {
 
+    private PoeDbContext PoeContext;
 
-    public CharacterService()
+    public CharacterService(PoeDbContext PoeContext)
     {
+      this.PoeContext = PoeContext;
+      SqlMapper.AddTypeHandler<PoeAccount>(new JsonConvertHandler<PoeAccount>());
+
       SqlMapper.AddTypeHandler<List<CharEntry>>(new JsonConvertHandler<List<CharEntry>>());
       SqlMapper.AddTypeHandler<List<UniqueEntry>>(new JsonConvertHandler<List<UniqueEntry>>());
       SqlMapper.AddTypeHandler<List<SkillEntry>>(new JsonConvertHandler<List<SkillEntry>>());
@@ -50,6 +54,14 @@ namespace RCB.JavaScript.Services
       SqlMapper.AddTypeHandler<WeaponTypeEntry[]>(new JsonConvertHandler<WeaponTypeEntry[]>());
       SqlMapper.AddTypeHandler<ClassEntry[]>(new JsonConvertHandler<ClassEntry[]>());
       SqlMapper.AddTypeHandler<MainSkillSupportCountEntry[]>(new JsonConvertHandler<MainSkillSupportCountEntry[]>());
+    }
+
+    public async Task<long> GetNumCharacters()
+    {
+      var sql = $@"SELECT reltuples::bigint AS estimate FROM pg_class where relname='Characters'";
+      long estimate;
+      estimate = await PoeContext.Database.GetDbConnection().ExecuteScalarAsync<long>(sql);
+      return estimate;
     }
 
     public async Task DefaultUpsert(PoeCharacterModel poeChar)
@@ -79,7 +91,6 @@ namespace RCB.JavaScript.Services
           }).RunAsync();
         }
       }
-      var PoeContext = new PoeDbContext();
       using (var tran = PoeContext.Database.BeginTransaction())
       {
         await upsert(PoeContext);
@@ -122,8 +133,8 @@ namespace RCB.JavaScript.Services
               AllKeystoneCountEntries = result2.AllKeystoneCountEntries ?? new KeystoneEntry[] { },
               MainSkillCountEntries = result2.MainSkillCountEntries ?? new SkillEntry[] { },
               MainSkillSupportCountEntries = result2.MainSkillSupportCountEntries ?? new MainSkillSupportCountEntry[] { },
-              AllSkillCountEntries = result2.AllSkillCountEntries ?? new SkillEntry[] {},
-              WeaponTypeCountEntries = result2.WeaponTypeCountEntries ?? new WeaponTypeEntry[] {}
+              AllSkillCountEntries = result2.AllSkillCountEntries ?? new SkillEntry[] { },
+              WeaponTypeCountEntries = result2.WeaponTypeCountEntries ?? new WeaponTypeEntry[] { }
             };
             var updateCountSql = $@"UPDATE ""Characters"" SET ""CountAnalysis"" = @CountAnalysis WHERE ""CharacterId"" = @CharacterId";
             await PoeContext.Database.GetDbConnection().ExecuteAsync(updateCountSql, new

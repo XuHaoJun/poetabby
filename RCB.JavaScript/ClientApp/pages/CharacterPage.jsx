@@ -314,7 +314,7 @@ const ItemDetail = ({ data }) => {
     );
 };
 
-function getPlayerStatValue(pob, statName, notFoundValue = undefined) {
+function getPlayerStatValue(pob, statName, notFoundValue = 0) {
     return _get(
         _get(pob, "build.playerStat", []).find((pstat) => pstat.stat == statName),
         "value",
@@ -468,7 +468,7 @@ class CharacterPage extends React.Component {
         }
         const characterName = this.props.character ? this.props.character.characterName : this.props.match.params.characterName;
         const accountName = this.props.character ? this.props.character.accountName : this.props.match.params.accountName;
-        const { character: pchar, location } = this.props;
+        const { character: pchar, location, isFetching } = this.props;
         return (
             <React.Fragment>
                 <Helmet>
@@ -668,8 +668,8 @@ class CharacterPage extends React.Component {
                                             <TableRow>
                                                 <TableCell>Life</TableCell>
                                                 <TableCell align="right">
-                                                    {_hasIn(pchar, "lifeUnreserved") ? (
-                                                        _get(pchar, "lifeUnreserved")
+                                                    {!isFetching ? (
+                                                        _get(pchar, "lifeUnreserved", 0)
                                                     ) : (
                                                         <DefaultTableCellSkeleton />
                                                     )}
@@ -678,18 +678,14 @@ class CharacterPage extends React.Component {
                                             <TableRow>
                                                 <TableCell>Energy Shield</TableCell>
                                                 <TableCell align="right">
-                                                    {_hasIn(pchar, "energyShield") ? (
-                                                        _get(pchar, "energyShield")
-                                                    ) : (
-                                                        <DefaultTableCellSkeleton />
-                                                    )}
+                                                    {!isFetching ? _get(pchar, "energyShield", 0) : <DefaultTableCellSkeleton />}
                                                 </TableCell>
                                             </TableRow>
                                             <TableRow>
                                                 <TableCell>Mana</TableCell>
                                                 <TableCell align="right">
                                                     {_hasIn(pchar, "pob") ? (
-                                                        getPlayerStatValue(pchar.pob, "Mana", "None")
+                                                        getPlayerStatValue(pchar.pob, "Mana", 0)
                                                     ) : (
                                                         <DefaultTableCellSkeleton />
                                                     )}
@@ -699,7 +695,7 @@ class CharacterPage extends React.Component {
                                                 <TableCell>Armour</TableCell>
                                                 <TableCell align="right">
                                                     {_hasIn(pchar, "pob") ? (
-                                                        getPlayerStatValue(pchar.pob, "Armour", "None")
+                                                        getPlayerStatValue(pchar.pob, "Armour", 0)
                                                     ) : (
                                                         <DefaultTableCellSkeleton />
                                                     )}
@@ -709,7 +705,7 @@ class CharacterPage extends React.Component {
                                                 <TableCell>Evasion Rating</TableCell>
                                                 <TableCell align="right">
                                                     {_hasIn(pchar, "pob") ? (
-                                                        getPlayerStatValue(pchar.pob, "Evasion", "None")
+                                                        getPlayerStatValue(pchar.pob, "Evasion", 0)
                                                     ) : (
                                                         <DefaultTableCellSkeleton />
                                                     )}
@@ -725,7 +721,7 @@ class CharacterPage extends React.Component {
                                                 <TableCell>Strength</TableCell>
                                                 <TableCell align="right">
                                                     {_hasIn(pchar, "pob") ? (
-                                                        getPlayerStatValue(pchar.pob, "Str", "None")
+                                                        getPlayerStatValue(pchar.pob, "Str", 0)
                                                     ) : (
                                                         <DefaultTableCellSkeleton />
                                                     )}
@@ -735,7 +731,7 @@ class CharacterPage extends React.Component {
                                                 <TableCell>Dexterity</TableCell>
                                                 <TableCell align="right">
                                                     {_hasIn(pchar, "pob") ? (
-                                                        getPlayerStatValue(pchar.pob, "Dex", "None")
+                                                        getPlayerStatValue(pchar.pob, "Dex", 0)
                                                     ) : (
                                                         <DefaultTableCellSkeleton />
                                                     )}
@@ -745,7 +741,7 @@ class CharacterPage extends React.Component {
                                                 <TableCell>Intelligence</TableCell>
                                                 <TableCell align="right">
                                                     {_hasIn(pchar, "pob") ? (
-                                                        getPlayerStatValue(pchar.pob, "Int", "None")
+                                                        getPlayerStatValue(pchar.pob, "Int", 0)
                                                     ) : (
                                                         <DefaultTableCellSkeleton />
                                                     )}
@@ -761,7 +757,7 @@ class CharacterPage extends React.Component {
                                                 <TableCell>Block Chance</TableCell>
                                                 <TableCell align="right">
                                                     {_hasIn(pchar, "pob") ? (
-                                                        `${getPlayerStatValue(pchar.pob, "BlockChance", "None")}%`
+                                                        `${getPlayerStatValue(pchar.pob, "BlockChance", 0)}%`
                                                     ) : (
                                                         <DefaultTableCellSkeleton />
                                                     )}
@@ -771,7 +767,7 @@ class CharacterPage extends React.Component {
                                                 <TableCell>Spell Block Chance</TableCell>
                                                 <TableCell align="right">
                                                     {_hasIn(pchar, "pob") ? (
-                                                        `${getPlayerStatValue(pchar.pob, "SpellBlockChance", "None")}%`
+                                                        `${getPlayerStatValue(pchar.pob, "SpellBlockChance", 0)}%`
                                                     ) : (
                                                         <DefaultTableCellSkeleton />
                                                     )}
@@ -781,7 +777,7 @@ class CharacterPage extends React.Component {
                                                 <TableCell>Doge Change</TableCell>
                                                 <TableCell align="right">
                                                     {_hasIn(pchar, "pob") ? (
-                                                        `${getPlayerStatValue(pchar.pob, "AttackDodgeChance", "None")}%`
+                                                        `${getPlayerStatValue(pchar.pob, "AttackDodgeChance", 0)}%`
                                                     ) : (
                                                         <DefaultTableCellSkeleton />
                                                     )}
@@ -791,7 +787,7 @@ class CharacterPage extends React.Component {
                                                 <TableCell>Spell Doge Change</TableCell>
                                                 <TableCell align="right">
                                                     {_hasIn(pchar, "pob") ? (
-                                                        `${getPlayerStatValue(pchar.pob, "SpellDodgeChance", "None")}%`
+                                                        `${getPlayerStatValue(pchar.pob, "SpellDodgeChance", 0)}%`
                                                     ) : (
                                                         <DefaultTableCellSkeleton />
                                                     )}
@@ -807,7 +803,7 @@ class CharacterPage extends React.Component {
                                                 <TableCell>Endurance Charges(.Max)</TableCell>
                                                 <TableCell align="right">
                                                     {_hasIn(pchar, "pob") ? (
-                                                        getPlayerStatValue(pchar.pob, "EnduranceChargesMax", "None")
+                                                        getPlayerStatValue(pchar.pob, "EnduranceChargesMax", 0)
                                                     ) : (
                                                         <Skeleton variant="rect" width="8" height="19" />
                                                     )}
@@ -817,7 +813,7 @@ class CharacterPage extends React.Component {
                                                 <TableCell>Frenzy Charges(.Max)</TableCell>
                                                 <TableCell align="right">
                                                     {_hasIn(pchar, "pob") ? (
-                                                        getPlayerStatValue(pchar.pob, "FrenzyChargesMax", "None")
+                                                        getPlayerStatValue(pchar.pob, "FrenzyChargesMax", 0)
                                                     ) : (
                                                         <Skeleton variant="rect" width="8" height="19" />
                                                     )}
@@ -827,7 +823,7 @@ class CharacterPage extends React.Component {
                                                 <TableCell>Power Charges(.Max)</TableCell>
                                                 <TableCell align="right">
                                                     {_hasIn(pchar, "pob") ? (
-                                                        getPlayerStatValue(pchar.pob, "PowerChargesMax", "None")
+                                                        getPlayerStatValue(pchar.pob, "PowerChargesMax", 0)
                                                     ) : (
                                                         <Skeleton variant="rect" width="8" height="19" />
                                                     )}

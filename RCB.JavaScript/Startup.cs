@@ -60,7 +60,14 @@ namespace RCB.JavaScript
         string redisUrl = System.Environment.GetEnvironmentVariable("REDIS_URL");
         if (System.String.IsNullOrWhiteSpace(redisUrl))
         {
-          options.Configuration = "localhost:6379";
+          if (System.Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true")
+          {
+            options.Configuration = "host.docker.internal:6379";
+          }
+          else
+          {
+            options.Configuration = "localhost:6379";
+          }
         }
         else
         {

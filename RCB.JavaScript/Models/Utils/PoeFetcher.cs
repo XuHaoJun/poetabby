@@ -35,84 +35,109 @@ namespace RCB.JavaScript.Models.Utils
 
   public class PoeFetcher
   {
-    private static readonly HttpClient HttpClient;
+    private static readonly HttpClient HttpClient = new HttpClient();
 
-    static public async IAsyncEnumerable<PoeCharacterModel> GetCharactersFromLadderIterator(string leagueName, int limit = 10, int offset = 0)
+    static public string GetCharacterItemsUrl(string accountName, string characterName)
     {
-      var HttpClient = new HttpClient();
-      string urlParams = (offset > 0 ? $"offset={offset}" : "") + (offset > 0 ? "&" : "") + (limit > 0 ? $"limit={limit}" : "");
-      var httpLadderRes = await HttpClient.GetAsync($"http://www.pathofexile.com/api/ladders/{leagueName}?{urlParams}");
-      if (httpLadderRes.IsSuccessStatusCode)
+      string urlParameters = $"accountName={accountName}&character={characterName}";
+      return $"http://www.pathofexile.com/character-window/get-items?{urlParameters}";
+    }
+
+    static public string GetCharacterPassivesUrl(string accountName, string characterName)
+    {
+      string urlParameters = $"accountName={accountName}&character={characterName}&reqData=0";
+      return $"http://www.pathofexile.com/character-window/get-passive-skills?{urlParameters}";
+    }
+
+    static public string GetLadderUrl(string leagueName, int limit, int offset, string _accountName)
+    {
+      string urlParameters = (offset > 0 ? $"offset={offset}" : "") + (offset > 0 ? "&" : "") + (limit > 0 ? $"limit={limit}" : "");
+      urlParameters += _accountName != null ? $"&accountName={_accountName}" : "";
+      return $"http://www.pathofexile.com/api/ladders/{leagueName}?{urlParameters}";
+    }
+
+    static public string GetLeaguesUrl()
+    {
+      return $"https://www.pathofexile.com/api/leagues?realm=pc&compat=0";
+    }
+
+    public class LeagueResponse : PoeLeagueModel
+    {
+      public string Id { get; set; }
+
+      public PoeLeagueModel ToPoeLeagueModel()
       {
-        string ladderBody = await httpLadderRes.Content.ReadAsStringAsync();
-        LadderResponse ladderResponse = JsonConvert.DeserializeObject<LadderResponse>(ladderBody);
-        foreach (LadderEntry entry in ladderResponse.Entries)
+        var model = (PoeLeagueModel)this;
+        model.LeagueId = this.Id;
+        return model;
+      }
+    }
+
+    static public async Task<List<PoeLeagueModel>> GetLeagues()
+    {
+      List<LeagueResponse> leagues;
+      using (var httpRes = await HttpClient.GetAsync(GetLeaguesUrl()))
+      {
+        if (httpRes.IsSuccessStatusCode)
         {
-          string urlParameters;
-          urlParameters = $"accountName={entry.Account.Name}&character={entry.Character.Name}&reqData=0";
-          var passivesRes = await HttpClient.GetAsync($"http://www.pathofexile.com/character-window/get-passive-skills?{urlParameters}");
-          string passivesJson = passivesRes.IsSuccessStatusCode ? await passivesRes.Content.ReadAsStringAsync() : "";
-          urlParameters = $"accountName={entry.Account.Name}&character={entry.Character.Name}";
-          var itemsRes = await HttpClient.GetAsync($"http://www.pathofexile.com/character-window/get-items?{urlParameters}");
-          string itemsJson = itemsRes.IsSuccessStatusCode ? await itemsRes.Content.ReadAsStringAsync() : "";
-          if (passivesJson.Length > 0 && itemsJson.Length > 0)
+          leagues = JsonConvert.DeserializeObject<List<LeagueResponse>>(await httpRes.Content.ReadAsStringAsync());
+        }
+        else
+        {
+          leagues = new List<LeagueResponse> { };
+        }
+      }
+      return leagues.Select(x => x.ToPoeLeagueModel()).ToList();
+    }
+
+    static public async IAsyncEnumerable<CharFetchResultPayload> GetCharFetchResultPayloadFromLadderIterator(
+      string leagueName, int limit = 10, int offset = 0, string _accountName = null)
+    {
+      string urlParams = (offset > 0 ? $"offset={offset}" : "") + (offset > 0 ? "&" : "") + (limit > 0 ? $"limit={limit}" : "");
+      urlParams += _accountName != null ? $"&accountName={_accountName}" : "";
+      LadderResponse ladderResponse;
+      using (var httpLadderRes = await HttpClient.GetAsync(GetLadderUrl(leagueName, limit, offset, _accountName)))
+      {
+        if (httpLadderRes.IsSuccessStatusCode)
+        {
+          string ladderBody = await httpLadderRes.Content.ReadAsStringAsync();
+          ladderResponse = JsonConvert.DeserializeObject<LadderResponse>(ladderBody);
+        }
+        else
+        {
+          ladderResponse = null;
+        }
+      }
+      if (ladderResponse != null)
+      {
+        for (int i = 0; i < ladderResponse.Entries.Count; i++)
+        {
+          LadderEntry entry = ladderResponse.Entries[i];
+          string accountName = entry.Account != null ? entry.Account.Name : _accountName;
+
+          string passivesJson;
+          using (var passivesRes = await HttpClient.GetAsync(GetCharacterPassivesUrl(accountName, entry.Character.Name)))
           {
-            string xml = PobUtils.GetBuildXmlByJsons(passivesJson, itemsJson);
-            PathOfBuilding pob;
-            try
+            passivesJson = passivesRes.IsSuccessStatusCode ? await passivesRes.Content.ReadAsStringAsync() : "";
+          }
+
+          if (passivesJson.Length > 0)
+          {
+            await Task.Delay(500);
+            string itemsJson;
+            using (var itemsRes = await HttpClient.GetAsync(GetCharacterItemsUrl(accountName, entry.Character.Name)))
             {
-              pob = PobUtils.XmlToPob(xml);
-              // Use empty skills instead of null that better for sql query.
-              if (pob.Skills == null)
-              {
-                pob.Skills = new PathOfBuildingSkills() { };
-              }
-              if (pob.Skills.Skill == null)
-              {
-                pob.Skills.Skill = new PathOfBuildingSkillsSkill[] { };
-              }
+              itemsJson = itemsRes.IsSuccessStatusCode ? await itemsRes.Content.ReadAsStringAsync() : "";
             }
-            catch (System.Exception e)
+            if (passivesJson.Length > 0 && itemsJson.Length > 0)
             {
-              // TODO
-              // Log entry and e
-              if (e is System.InvalidOperationException || e is System.Xml.XmlException)
+              yield return new CharFetchResultPayload()
               {
-                pob = null;
-                System.Console.WriteLine(e.ToString());
-              }
-              else
-              {
-                throw;
-              }
-            }
-            if (pob != null)
-            {
-              PoeItems items = JsonConvert.DeserializeObject<PoeItems>(itemsJson);
-              PoePassives passives = JsonConvert.DeserializeObject<PoePassives>(passivesJson);
-              string code = PobUtils.XmlToCode(xml);
-              var poeChar = new PoeCharacterModel()
-              {
-                CharacterId = entry.Character.Id,
-                CharacterName = entry.Character.Name,
-                LeagueName = leagueName,
-                Account = entry.Account,
-                AccountName = entry.Account.Name,
-                Level = entry.Character.Level,
-                Class = entry.Character.Class,
-                Depth = entry.Character.Depth ?? new PoeDepth { Solo = 0, Default = 0 },
-                Dead = entry.Dead,
-                Online = entry.Online,
-                Rank = entry.Rank,
-                Experience = entry.Character.Experience,
-                LifeUnreserved = pob.GetStat("LifeUnreserved"),
-                EnergyShield = pob.GetStat("EnergyShield"),
-                Pob = pob,
-                PobCode = code,
-                Items = new List<PoeItem>() { }.Concat(items.items.Concat(passives.items.Select(i => i.ToPoeItem()))).ToList(),
-                UpdatedAt = System.DateTime.UtcNow,
+                leagueName = leagueName,
+                ladderEntry = entry,
+                passivesJson = passivesJson,
+                itemsJson = itemsJson
               };
-              yield return poeChar;
             }
           }
           await Task.Delay(500);
@@ -120,14 +145,74 @@ namespace RCB.JavaScript.Models.Utils
       }
     }
 
-    static public async Task<List<PoeCharacterModel>> GetCharactersFromLadder(string leagueName, int limit = 10, int offset = 0)
+    public class CharFetchResultPayload
     {
-      List<PoeCharacterModel> poeChars = new List<PoeCharacterModel>();
-      await foreach (PoeCharacterModel pchar in GetCharactersFromLadderIterator(leagueName, limit, offset))
+      public string leagueName { get; set; }
+      public LadderEntry ladderEntry { get; set; }
+      public string passivesJson { get; set; }
+      public string itemsJson { get; set; }
+
+      public PoeCharacterModel ToCharacterModel(NLua.Lua luaState)
       {
-        poeChars.Add(pchar);
+        var entry = ladderEntry;
+        string buildXml = PobUtils.GetBuildXmlByJsons(passivesJson, itemsJson, luaState);
+        PathOfBuilding tryGetPob()
+        {
+          PathOfBuilding pob;
+          try
+          {
+            pob = PobUtils.XmlToPob(buildXml);
+          }
+          catch (System.Exception e)
+          {
+            // TODO
+            // Log entry and e
+            if (e is System.InvalidOperationException || e is System.Xml.XmlException)
+            {
+              pob = null;
+              System.Console.WriteLine(e.ToString());
+            }
+            else
+            {
+              throw;
+            }
+          }
+          return pob;
+        }
+        PathOfBuilding pob = tryGetPob();
+        if (pob != null)
+        {
+          PoeItems items = JsonConvert.DeserializeObject<PoeItems>(itemsJson);
+          PoePassives passives = JsonConvert.DeserializeObject<PoePassives>(passivesJson);
+          string code = PobUtils.XmlToCode(buildXml);
+          var poeChar = new PoeCharacterModel()
+          {
+            CharacterId = entry.Character.Id,
+            CharacterName = entry.Character.Name,
+            LeagueName = leagueName,
+            Account = entry.Account,
+            AccountName = entry.Account != null ? entry.Account.Name : null,
+            Level = entry.Character.Level,
+            Class = entry.Character.Class,
+            Depth = entry.Character.Depth ?? new PoeDepth { Solo = 0, Default = 0 },
+            Dead = entry.Dead,
+            Online = entry.Online,
+            Rank = entry.Rank,
+            Experience = entry.Character.Experience,
+            LifeUnreserved = pob.GetStat("LifeUnreserved"),
+            EnergyShield = pob.GetStat("EnergyShield"),
+            Pob = pob,
+            PobCode = code,
+            Items = new List<PoeItem>() { }.Concat(items.items.Concat(passives.items.Select(i => i.ToPoeItem()))).ToList(),
+            UpdatedAt = System.DateTime.UtcNow,
+          };
+          return poeChar;
+        }
+        else
+        {
+          return null;
+        }
       }
-      return poeChars;
     }
   }
 }

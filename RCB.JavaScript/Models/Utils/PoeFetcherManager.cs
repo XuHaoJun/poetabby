@@ -7,6 +7,8 @@ using System.Collections.Generic;
 using RCB.JavaScript.Services;
 using RCB.JavaScript.Models;
 using System.Linq;
+using NLua;
+using Dapper;
 
 namespace RCB.JavaScript.Models.Utils
 {
@@ -14,14 +16,19 @@ namespace RCB.JavaScript.Models.Utils
   {
     private readonly ILogger<PoeFetcherManager> _logger;
     private readonly CharacterService characterService;
+    private readonly LeagueService leagueService;
     private readonly PoeDbContext PoeContext;
+    // private Lua luaState;
 
 
+    // TODO
+    // add char and league service to singleton
     public PoeFetcherManager(ILogger<PoeFetcherManager> logger)
     {
       _logger = logger;
       this.PoeContext = new PoeDbContext();
-      this.characterService = new CharacterService();
+      this.characterService = new CharacterService(this.PoeContext);
+      this.leagueService = new LeagueService(this.PoeContext);
     }
 
     private async Task ForceUpdateCharacters(CancellationToken stoppingToken)
@@ -39,12 +46,6 @@ namespace RCB.JavaScript.Models.Utils
         }
         await characterService.DefaultUpsert(_c);
       }
-      // List<Task> tasks = new List<Task>();
-      // foreach (var _c in _chars)
-      // {
-      //   tasks.Add(characterService.DefaultUpsert(_c));
-      // }
-      // Task.WaitAll(tasks.ToArray());
     }
 
     private void ForceUpdateCharactersPob(CancellationToken stoppingToken)
@@ -79,125 +80,243 @@ namespace RCB.JavaScript.Models.Utils
         {
           _logger.LogError(e.ToString());
         }
-        System.GC.Collect();
       }
     }
 
-    private async Task fetchCharsFromLadder(string leagueName, int limit, int offset)
+    private async Task ladderTask(
+      CancellationToken stoppingToken,
+      string currentLeagueName, int limit = 50, int offset = 0, string accountName = null)
     {
-      _logger.LogInformation($"GetCharactersFromLadder Harvest Limit: {limit}, Offset: {offset}");
-      try
+      var payloads = new List<PoeFetcher.CharFetchResultPayload> { };
+      await foreach (var payload in PoeFetcher.GetCharFetchResultPayloadFromLadderIterator(currentLeagueName, limit, offset, accountName))
       {
-        await foreach (PoeCharacterModel poeChar in PoeFetcher.GetCharactersFromLadderIterator(leagueName, limit, offset))
+        if (stoppingToken.IsCancellationRequested)
         {
-          _logger.LogInformation($"Upserting {poeChar.AccountName} / {poeChar.CharacterName}");
-          await characterService.DefaultUpsert(poeChar);
-          System.Runtime.GCSettings.LargeObjectHeapCompactionMode = System.Runtime.GCLargeObjectHeapCompactionMode.CompactOnce;
-          System.GC.Collect();
-          System.GC.WaitForPendingFinalizers();
-          System.GC.Collect();
-          _logger.LogInformation($"isServerGC: {System.Runtime.GCSettings.IsServerGC}");
-          _logger.LogInformation($"Total memory: {System.GC.GetTotalMemory(false)}");
+          return;
+        }
+        payloads.Add(payload);
+      }
+      System.GC.Collect();
+      PobUtils.try_malloc_trim(0);
+      // gc for run pob, need 500M+ memory.
+      var pchars = new List<PoeCharacterModel> { };
+      using (var luaState = PobUtils.CreateLuaState())
+      {
+        foreach (var payload in payloads)
+        {
+          if (stoppingToken.IsCancellationRequested)
+          {
+            break;
+          }
+          PoeCharacterModel pchar = payload.ToCharacterModel(luaState);
+          if (pchar != null)
+          {
+            pchars.Add(pchar);
+          }
         }
       }
-      catch (System.Net.Sockets.SocketException e)
+      // force clear 500M+ memory
+      System.GC.Collect();
+      PobUtils.try_malloc_trim(0);
+      foreach (var pchar in pchars)
       {
-        _logger.LogDebug(e.ToString());
-        _logger.LogInformation($"Failed fetch GetCharactersFromLadder {leagueName} Limit: {limit}, Offset: {offset}");
+        _logger.LogInformation($"Upserting {pchar.AccountName} / {pchar.CharacterName}");
+        await characterService.DefaultUpsert(pchar);
+      }
+    }
+
+    private async Task FetchAndUpsertCharacters(CancellationToken stoppingToken, string targetLeagueName)
+    {
+      int limit = 50;
+      long limitCharRows = 9000;
+      long numCharRows = await characterService.GetNumCharacters();
+      if (numCharRows >= limitCharRows)
+      {
+        _logger.LogInformation($"Full characters reach limit rows {limitCharRows}, current: {numCharRows} only update.");
+        var entityType = PoeContext.Model.FindEntityType(typeof(PoeCharacterModel));
+        var schema = entityType.GetSchema();
+        var tableName = entityType.GetTableName();
+        var sql = $@"
+        SELECT ""AccountName"", ""LeagueName"", ""CharacterId"", ""Account""
+        FROM ""{tableName}""
+        ORDER BY RANDOM()
+        LIMIT {limit}
+        ";
+        var pchars = PoeContext.Database.GetDbConnection().Query<PoeCharacterModel>(sql).ToList();
+        var fetchResults = new List<PoeFetcher.CharFetchResultPayload> { };
+        foreach (PoeCharacterModel pchar in pchars)
+        {
+          // Not support specific character from ladder only by accountName.
+          await foreach (var res in PoeFetcher.GetCharFetchResultPayloadFromLadderIterator(pchar.LeagueName, 5, 0, pchar.AccountName))
+          {
+            if (res != null && res.ladderEntry != null && res.ladderEntry.Account == null)
+            {
+              res.ladderEntry.Account = pchar.Account;
+            }
+            fetchResults.Add(res);
+          }
+          await Task.Delay(500, stoppingToken);
+        }
+        fetchResults = fetchResults.Where(res =>
+        {
+          return pchars.Any(p =>
+          {
+            return p.CharacterId == res.ladderEntry.Character.Id;
+          });
+        }
+        ).ToList();
+        System.GC.Collect();
+        PobUtils.try_malloc_trim(0);
+        List<PoeCharacterModel> newPchars;
+        using (var luaState = PobUtils.CreateLuaState())
+        {
+          newPchars = fetchResults
+                  .Select(res => res.ToCharacterModel(luaState))
+                  .Where(pchar => pchar != null)
+                  .ToList();
+        }
+        System.GC.Collect();
+        PobUtils.try_malloc_trim(0);
+        foreach (var pchar in newPchars)
+        {
+          _logger.LogInformation($"Upserting {pchar.AccountName} / {pchar.CharacterName}");
+          await characterService.DefaultUpsert(pchar);
+        }
+      }
+      else
+      {
+        int currentMaxRank = await PoeContext.Characters.MaxAsync(c => (int?)c.Rank) ?? 0;
+        int targetMax = 15000;
+        int maxDelta = targetMax - currentMaxRank;
+        string currentLeagueName = targetLeagueName;
+        if (maxDelta <= limit)
+        {
+          System.Random rnd = new System.Random();
+          int offset = rnd.Next(0, targetMax - limit);
+          await ladderTask(stoppingToken, currentLeagueName, limit, offset);
+        }
+        else
+        {
+          int offset = currentMaxRank;
+          await ladderTask(stoppingToken, currentLeagueName, limit, offset);
+        }
       }
     }
 
 
-    private async Task infiniteRandom(string leagueName, int targetMax, int limit)
+    private async Task FetchAndUpsertLeagues()
     {
-      _logger.LogDebug($"Infinte Random get characters from ladder.");
-      while (true)
+      List<PoeLeagueModel> leagues = await PoeFetcher.GetLeagues();
+      using (var PoeContext = new PoeDbContext())
       {
-        System.Random rnd = new System.Random();
-        int offset = rnd.Next(0, targetMax - limit);
-        await fetchCharsFromLadder(leagueName, limit, offset);
-        PobUtils.DisposeLuaState();
-        System.Runtime.GCSettings.LargeObjectHeapCompactionMode = System.Runtime.GCLargeObjectHeapCompactionMode.CompactOnce;
-        System.GC.Collect();
-        System.GC.WaitForPendingFinalizers();
-        System.GC.Collect();
-        await Task.Delay(60000 * 5);
-      }
-    }
-
-
-    private async Task ladderRankAscGet(string leagueName, int maxRank, int limit, int maxDelta)
-    {
-      for (int i = 0; i < (maxDelta / limit); i++)
-      {
-        int offset = (limit * i) + maxRank;
-        await fetchCharsFromLadder(leagueName, limit, offset);
-        // PobUtils.DisposeLuaState();
-        await Task.Delay(60000 * 5);
+        await PoeContext.Leagues.UpsertRange(leagues.ToArray()).On(x => new { LeagueId = x.LeagueId }).RunAsync();
       }
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-      _logger.LogInformation($"PoeFetcherManager is starting.");
+      _logger.LogInformation($"Is starting.");
 
+      // web server start first 
+      Thread.Yield();
+
+      var taskCancelSources = new Dictionary<Task, CancellationTokenSource> { };
       stoppingToken.Register(() =>
-          _logger.LogInformation($"PoeFetcherManager background task is stopping."));
+      {
+        _logger.LogInformation($"Background task is stopping.");
+        _logger.LogInformation("Stopping children background tasks.");
+        foreach (var canlSource in taskCancelSources.Values)
+        {
+          canlSource.Cancel();
+        }
+      });
       try
       {
-        // var _chars = await PoeContext.Characters.ToListAsync();
-        // foreach (var _c in _chars)
-        // {
-        //   foreach (var stat in _c.Pob.Build.PlayerStat)
-        //   {
-        //     if (stat.stat == "LifeUnreserved")
-        //     {
-        //       _c.LifeUnreserved = (long)stat.value;
-        //     }
-        //     else if (stat.stat == "EnergyShield")
-        //     {
-        //       _c.EnergyShield = (long)stat.value;
-        //     }
-        //   }
-        //   if (_c.Pob.Skills == null)
-        //   {
-        //     _c.Pob.Skills = new PathOfBuildingSkills() { };
-        //   }
-        //   if (_c.Pob.Skills.Skill == null)
-        //   {
-        //     _c.Pob.Skills.Skill = new PathOfBuildingSkillsSkill[] { };
-        //   }
-        // }
-        // PoeContext.UpdateRange(_chars);
-        // await PoeContext.SaveChangesAsync();
-
-        // await ForceUpdateCharacters(stoppingToken);
-        // ForceUpdateCharactersPob(stoppingToken);
-
-        // PobUtils.Foo();
-        // return;
-
-        // await Task.Delay(1000);
-        int maxRank = await PoeContext.Characters.MaxAsync(c => (int?)c.Rank) ?? 0;
-        int targetMax = 15000;
-        int maxDelta = targetMax - maxRank;
-        int limit = 50;
-        string currentLeagueName = "Harvest";
-
-
-        if (maxDelta <= limit)
+        async Task fetchAndUpsertLeaguesLoop(CancellationToken stoppingToken, PoeLeagueModel waitLeague = null)
         {
-          await infiniteRandom(currentLeagueName, targetMax, limit);
+          stoppingToken.Register(() =>
+          {
+            _logger.LogInformation("Stopping fetchAndUpsertLeaguesLoop task");
+          });
+          while (!stoppingToken.IsCancellationRequested)
+          {
+            int defaultDelayTime = 60000 * 60 * 2; // 2hr
+            if (waitLeague == null)
+            {
+              await Task.Delay(defaultDelayTime, stoppingToken);
+            }
+            else
+            {
+              if (waitLeague.EndAt == null)
+              {
+                await Task.Delay(defaultDelayTime, stoppingToken);
+              }
+              else
+              {
+                var now = System.DateTime.UtcNow;
+                if (waitLeague.EndAt.Value > now)
+                {
+                  System.TimeSpan delayTimeSpan = waitLeague.EndAt.Value.Subtract(System.DateTime.UtcNow);
+                  await Task.Delay(delayTimeSpan, stoppingToken);
+                }
+                else
+                {
+                  await Task.Delay(defaultDelayTime, stoppingToken);
+                }
+              }
+            }
+            await FetchAndUpsertLeagues();
+          }
+        }
+        await FetchAndUpsertLeagues();
+
+        async Task fetchAndUpsertCharactersLoop(CancellationToken stoppingToken, string targetLeagueName)
+        {
+          int defaultDelayTime = 60000 * 10; // 10 min
+          stoppingToken.Register(() =>
+          {
+            _logger.LogInformation($"Stopping {targetLeagueName} fetchAndUpsertCharactersLoop task");
+          });
+          while (!stoppingToken.IsCancellationRequested)
+          {
+            await FetchAndUpsertCharacters(stoppingToken, targetLeagueName);
+            await Task.Delay(defaultDelayTime, stoppingToken);
+          }
+        }
+
+        var tasks = new List<Task> { };
+
+        PoeLeagueModel defaultLeague = await leagueService.GetDefaultLeague();
+        if (defaultLeague != null)
+        {
+          var leagueCancelSource = new CancellationTokenSource();
+          Task leaguesLoop = fetchAndUpsertLeaguesLoop(leagueCancelSource.Token, defaultLeague);
+          tasks.Add(leaguesLoop);
+          taskCancelSources.Add(leaguesLoop, leagueCancelSource);
+
+          var characterCancelSource = new CancellationTokenSource();
+          Task charactersLoop = fetchAndUpsertCharactersLoop(characterCancelSource.Token, defaultLeague.LeagueId);
+          tasks.Add(charactersLoop);
+          taskCancelSources.Add(charactersLoop, characterCancelSource);
         }
         else
         {
-          // await ladderRankAscGet(currentLeagueName);
-          // await infiniteRandom(currentLeagueName, targetMax, limit);
+          _logger.LogError("Not found default league!!!");
         }
+
+        // you can add other leagues
+        await Task.WhenAll(tasks.ToArray());
       }
       catch (System.Exception e)
       {
         _logger.LogError(e.ToString());
+      }
+      finally
+      {
+        foreach (var canlSource in taskCancelSources.Values)
+        {
+          canlSource.Dispose();
+        }
       }
     }
   }

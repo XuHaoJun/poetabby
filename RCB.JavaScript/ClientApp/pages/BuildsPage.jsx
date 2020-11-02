@@ -150,7 +150,7 @@ function _FilterList(props) {
                 const offhandType = getNormalized(item.offhandType);
                 return `${weaponType} / ${offhandType}`;
             } else {
-                return item.nameSpec || item.itemName || _get(treeData.getNode(item.skillId), "name");
+                return item.nameSpec || item.skillId || item.itemName || _get(treeData.getNode(item.skillId), "name");
             }
         };
     function renderRow({ style = {}, index }) {
@@ -550,21 +550,21 @@ const searchAnalysisMetas = [
         name: "mainSkillCountEntries",
         configField: "mainSkill",
         configType: "array",
-        getDisplay: (entry) => entry.nameSpec,
+        getDisplay: (entry) => entry.nameSpec || entry.skillId,
         getConfigValue: (entry, isInclude) => encodeOp(entry.skillId, isInclude)
     },
     {
         name: "mainSkillSupportCountEntries",
         configField: "mainSkillSupport",
         configType: "mainSkillSupportArray",
-        getDisplay: (entry) => entry.nameSpec,
+        getDisplay: (entry) => entry.nameSpec || entry.skillId,
         getConfigValue: (entry, isInclude) => encodeOp(entry.skillId, isInclude)
     },
     {
         name: "allSkillCountEntries",
         configField: "allSkill",
         configType: "array",
-        getDisplay: (entry) => entry.nameSpec,
+        getDisplay: (entry) => entry.nameSpec || entry.skillId,
         getConfigValue: (entry, isInclude) => encodeOp(entry.skillId, isInclude)
     },
     {

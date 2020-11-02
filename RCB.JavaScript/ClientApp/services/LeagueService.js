@@ -2,6 +2,20 @@ import { ServiceBase } from "@Core/ServiceBase";
 import queryString from "query-string";
 
 export default class LeagueService extends ServiceBase {
+    async getDefaultLeague() {
+        return await this.requestJson({
+            url: "/api/leagues/defaultLeague",
+            method: "GET"
+        });
+    }
+
+    async getLeagues() {
+        return await this.requestJson({
+            url: "/api/leagues",
+            method: "GET"
+        });
+    }
+
     async getCharacters(
         leagueName = "Harvest",
         config = {
@@ -18,10 +32,9 @@ export default class LeagueService extends ServiceBase {
             offset: 0
         }
     ) {
-        var result = await this.requestJson({
+        return await this.requestJson({
             url: queryString.stringifyUrl({ url: `/api/leagues/${leagueName}/characters`, query: config }),
             method: "GET"
         });
-        return result;
     }
 }

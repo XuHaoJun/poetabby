@@ -54,6 +54,15 @@ namespace RCB.JavaScript.Services
       SqlMapper.AddTypeHandler<MainSkillSupportCountEntry[]>(new JsonConvertHandler<MainSkillSupportCountEntry[]>());
     }
 
+    private string GetCharactersTableName()
+    {
+
+      var entityType = PoeContext.Model.FindEntityType(typeof(PoeCharacterModel));
+      var schema = entityType.GetSchema();
+      var tableName = entityType.GetTableName();
+      return tableName;
+    }
+
     static public (StringBuilder, DynamicParameters) GetCharactersSql(string leagueName, GetCharactersConfig config, bool enableCollectAll = true)
     {
       var classes = config.classes;
@@ -69,7 +78,8 @@ namespace RCB.JavaScript.Services
       var characterId = config.characterId;
       var characterNameLike = config.characterNameLike;
       var filtedCsBuilder = new SqlBuilder();
-      var filtedCsTemplate = filtedCsBuilder.AddTemplate(@"
+      // TODO use GetCharactersTableName
+      var filtedCsTemplate = filtedCsBuilder.AddTemplate($@"
 SELECT
 	""cs"".*
 FROM 
@@ -1305,6 +1315,24 @@ FROM
        )).FirstOrDefault();
       SqlMapper.PurgeQueryCache();
       return result;
+    }
+
+
+    public IQueryable<PoeLeagueModel> GetDefaultLeagueQuery()
+    {
+      var clientNow = DateTime.UtcNow;
+      return PoeContext.Leagues.Where(
+              x =>
+              EF.Functions.Like(x.Description, "% default Path of Exile league%") &&
+              clientNow >= x.StartAt &&
+              clientNow < (x.EndAt == null ? clientNow : x.EndAt)
+            );
+    }
+
+    public async Task<PoeLeagueModel> GetDefaultLeague()
+    {
+      var clientNow = DateTime.UtcNow;
+      return await GetDefaultLeagueQuery().SingleOrDefaultAsync();
     }
   }
 }

@@ -87,7 +87,7 @@ export const actionCreators = {
         if (!result.hasErrors) {
             dispatch(slice.actions.putData(result.value));
         } else if (_get(result, "lastError.response.status") === 404) {
-            dispatch(slice.actions.clear());
+            dispatch(slice.actions.clearData());
         }
 
         dispatch(slice.actions.setFetching(false));
