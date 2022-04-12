@@ -31,7 +31,7 @@ namespace RCB.JavaScript
       services.AddLogging(loggingBuilder =>
           loggingBuilder.AddSerilog(dispose: true));
 
-      services.AddHostedService<RCB.JavaScript.Models.Utils.PoeFetcherManager>();
+      // services.AddHostedService<RCB.JavaScript.Models.Utils.PoeFetcherManager>();
 
       services.AddControllersWithViews(opts =>
       {
