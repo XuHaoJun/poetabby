@@ -3,7 +3,7 @@
 
 A poe build showcase tool that similar [poe.ninja's builds](https://poe.ninja/challenge/builds), based on ASP.NET Core and postgresql.
 
-[Online Demo](https://poetabby.herokuapp.com/).
+[Online Demo](https://poetabby-x.herokuapp.com/).
 
 # Buliding
 
